@@ -1,6 +1,14 @@
 import React from 'react';
 import { cn } from '../utils/cn';
-import { Building2, Users, FileText, BarChart3, Settings } from 'lucide-react';
+import {
+  Building2,
+  Users,
+  FileText,
+  BarChart3,
+  Settings,
+  Upload,
+  RefreshCw,
+} from 'lucide-react';
 import type { Page, NavigationItem } from '../types/navigation';
 import { SidebarCloseTrigger } from './SidebarTrigger';
 
@@ -32,6 +40,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'reports',
       label: 'Reports',
       icon: FileText,
+    },
+    {
+      id: 'import_transform',
+      label: 'Import & Transform',
+      icon: Upload,
+    },
+    {
+      id: 'transform_existing',
+      label: 'Transform Existing',
+      icon: RefreshCw,
     },
     {
       id: 'settings',

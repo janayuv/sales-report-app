@@ -1,0 +1,4 @@
+cust_code,cust_name,inv_date,RE,invno,part_code,part_name,tariff,qty,bas_price,ass_val,c_gst,s_gst,igst,amot,inv_val,igst_yes_no,percentage
+CUST001,John Doe,2025-01-15,RA,INV001,PART001,Widget A,1234,10,100.00,1000.00,90.00,90.00,0.00,50.00,1230.00,no,18
+CUST002,Jane Smith,2025-01-16,RB,INV002,PART002,Widget B,5678,5,200.00,1000.00,0.00,0.00,180.00,25.00,1205.00,yes,18
+CUST003,Bob Johnson,2025-01-17,RC,INV003,PART003,Widget C,9012,15,50.00,750.00,67.50,67.50,0.00,30.00,915.00,no,18

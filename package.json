@@ -1,5 +1,9 @@
 {
+  "scripts": {
+    "dev": "cd sale-report-app && npm run dev"
+  },
   "dependencies": {
-    "@tauri-apps/api": "^2.8.0"
+    "@tauri-apps/api": "^2.8.0",
+    "xlsx": "^0.18.5"
   }
 }

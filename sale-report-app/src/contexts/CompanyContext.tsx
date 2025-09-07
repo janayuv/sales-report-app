@@ -3,6 +3,7 @@ import React, {
   useContext,
   useState,
   useEffect,
+  useCallback,
   type ReactNode,
 } from 'react';
 import type { Company } from '../utils/database';
@@ -13,6 +14,7 @@ interface CompanyContextType {
   selectedCompany: Company | null;
   companies: Company[];
   setSelectedCompany: (company: Company) => void;
+  loadCompanies: () => Promise<void>;
   loading: boolean;
 }
 
@@ -39,9 +41,42 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const loadCompanies = useCallback(async () => {
+    try {
+      setLoading(true);
+
+      // Initialize database if not already initialized
+      if (!dbManager.isInitialized()) {
+        console.log('Initializing database...');
+        await dbManager.initialize();
+      }
+
+      const companiesList = await dbManager.getCompanies();
+      setCompanies(companiesList);
+      console.log('Loaded companies:', companiesList.length);
+    } catch (error) {
+      console.error('Failed to load companies:', error);
+
+      // Provide more specific error messages
+      let errorMessage = 'Failed to load companies.';
+      if (error instanceof Error) {
+        if (error.message.includes('invoke')) {
+          errorMessage =
+            'Backend service not available. Please make sure the application is running in Tauri mode.';
+        } else {
+          errorMessage = `Database error: ${error.message}`;
+        }
+      }
+
+      showToast.error(errorMessage + ' Please refresh the page.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadCompanies();
-  }, []);
+  }, [loadCompanies]);
 
   useEffect(() => {
     // Load selected company from localStorage
@@ -57,19 +92,6 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({
     }
   }, [companies]);
 
-  const loadCompanies = async () => {
-    try {
-      setLoading(true);
-      const companiesList = await dbManager.getCompanies();
-      setCompanies(companiesList);
-    } catch (error) {
-      console.error('Failed to load companies:', error);
-      showToast.error('Failed to load companies. Please refresh the page.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const setSelectedCompany = (company: Company) => {
     setSelectedCompanyState(company);
     localStorage.setItem('selectedCompanyKey', company.key);
@@ -79,6 +101,7 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({
     selectedCompany,
     companies,
     setSelectedCompany,
+    loadCompanies,
     loading,
   };
 

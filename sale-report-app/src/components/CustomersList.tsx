@@ -10,9 +10,12 @@ import {
   Download,
   Upload,
   FileText,
+  Settings,
 } from 'lucide-react';
 import { downloadFile, selectFile, readFileAsText } from '../utils/fileUtils';
 import { showToast } from './Toast';
+import { TransformationDialog } from './TransformationDialog';
+import type { TransformationResult } from '../utils/transformation';
 
 interface CustomersListProps {
   onEditCustomer: (customer: Customer) => void;
@@ -34,6 +37,12 @@ export const CustomersList: React.FC<CustomersListProps> = ({
   const [loading, setLoading] = useState(true);
   const [globalFilter, setGlobalFilter] = useState('');
   const [showImportMenu, setShowImportMenu] = useState(false);
+  const [showTransformationDialog, setShowTransformationDialog] =
+    useState(false);
+  const [transformationData, setTransformationData] = useState<{
+    inputData: any[];
+    sourceHeaders: string[];
+  } | null>(null);
 
   const loadCustomers = useCallback(async () => {
     if (!selectedCompany) return;
@@ -159,7 +168,7 @@ export const CustomersList: React.FC<CustomersListProps> = ({
       } else {
         showToast.dismiss(toastId);
         showToast.warning(
-          'No new customers were imported. All customers may already exist.'
+          "No new customers were imported. This could be because:\n• All customers already exist in the database\n• CSV format doesn't match expected columns\n• Required fields (customer name, tally name) are missing\n• Check the console for detailed import logs"
         );
       }
     } catch (error) {
@@ -170,6 +179,104 @@ export const CustomersList: React.FC<CustomersListProps> = ({
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleImportWithTransformation = async () => {
+    if (!selectedCompany) return;
+
+    try {
+      const file = await selectFile('.csv');
+      if (!file) return;
+
+      const csvData = await readFileAsText(file);
+
+      // Parse CSV data
+      const lines = csvData.split('\n').filter(line => line.trim());
+      if (lines.length < 2) {
+        showToast.error(
+          'CSV file must contain at least a header row and one data row.'
+        );
+        return;
+      }
+
+      const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+      const data = lines.slice(1).map(line => {
+        const values = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+        const row: any = {};
+        headers.forEach((header, index) => {
+          row[header] = values[index] || '';
+        });
+        return row;
+      });
+
+      setTransformationData({ inputData: data, sourceHeaders: headers });
+      setShowTransformationDialog(true);
+      setShowImportMenu(false);
+    } catch (error) {
+      console.error('Failed to parse CSV file:', error);
+      showToast.error(
+        'Failed to parse CSV file. Please check the file format.'
+      );
+    }
+  };
+
+  const handleTransformationComplete = async (result: TransformationResult) => {
+    if (!selectedCompany || !result.success) {
+      showToast.error(
+        'Transformation failed. Please fix errors and try again.'
+      );
+      return;
+    }
+
+    try {
+      const toastId = showToast.loading('Importing transformed data...');
+      setLoading(true);
+
+      // Convert transformed data to CSV format for import
+      const csvContent = generateCSVForImport(result.data);
+
+      const importedCount = await dbManager.importCustomersCSV(
+        selectedCompany.id,
+        csvContent
+      );
+
+      if (importedCount > 0) {
+        showToast.dismiss(toastId);
+        showToast.success(
+          `Successfully imported ${importedCount} customers from transformed data.`
+        );
+        onImportComplete?.(importedCount);
+        await loadCustomers();
+      } else {
+        showToast.dismiss(toastId);
+        showToast.warning(
+          'No new customers were imported from transformed data.'
+        );
+      }
+    } catch (error) {
+      console.error('Failed to import transformed data:', error);
+      showToast.error('Failed to import transformed data. Please try again.');
+    } finally {
+      setLoading(false);
+      setShowTransformationDialog(false);
+      setTransformationData(null);
+    }
+  };
+
+  const generateCSVForImport = (data: any[]): string => {
+    const headers = ['Customer Name', 'Tally Name', 'GST No', 'Category'];
+    const csvRows = [
+      headers.join(','),
+      ...data.map(row =>
+        [
+          `"${row.cust_name || ''}"`,
+          `"${row.cust_code || ''}"`,
+          `"${row.gst_no || ''}"`,
+          `"${row.category || 'General'}"`,
+        ].join(',')
+      ),
+    ];
+    return csvRows.join('\n');
   };
 
   const handleDownloadTemplate = () => {
@@ -210,7 +317,15 @@ export const CustomersList: React.FC<CustomersListProps> = ({
 
           <div className="relative">
             <button
-              onClick={() => setShowImportMenu(!showImportMenu)}
+              onClick={() => {
+                console.log(
+                  'Import button clicked, current state:',
+                  showImportMenu
+                );
+                const newState = !showImportMenu;
+                console.log('Setting showImportMenu to:', newState);
+                setShowImportMenu(newState);
+              }}
               disabled={loading}
               className="inline-flex items-center gap-2 px-4 py-2 border border-border rounded-md hover:bg-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -219,7 +334,7 @@ export const CustomersList: React.FC<CustomersListProps> = ({
             </button>
 
             {showImportMenu && (
-              <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-md shadow-lg z-10">
+              <div className="absolute right-0 top-full mt-2 w-56 bg-red-100 dark:bg-red-900 border-2 border-red-500 rounded-md shadow-lg z-[9999] min-w-max">
                 <button
                   onClick={() => {
                     handleImportCustomers();
@@ -229,6 +344,16 @@ export const CustomersList: React.FC<CustomersListProps> = ({
                 >
                   <Upload size={14} />
                   Import from CSV
+                </button>
+                <button
+                  onClick={() => {
+                    handleImportWithTransformation();
+                    setShowImportMenu(false);
+                  }}
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center gap-2"
+                >
+                  <Settings size={14} />
+                  Import with Transformation
                 </button>
                 <button
                   onClick={() => {
@@ -372,6 +497,20 @@ export const CustomersList: React.FC<CustomersListProps> = ({
             Showing {customers.length} of {customers.length} customers
           </div>
         </div>
+      )}
+
+      {/* Transformation Dialog */}
+      {transformationData && (
+        <TransformationDialog
+          isOpen={showTransformationDialog}
+          onClose={() => {
+            setShowTransformationDialog(false);
+            setTransformationData(null);
+          }}
+          inputData={transformationData.inputData}
+          sourceHeaders={transformationData.sourceHeaders}
+          onTransformComplete={handleTransformationComplete}
+        />
       )}
     </div>
   );

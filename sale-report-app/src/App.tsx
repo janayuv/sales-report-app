@@ -6,6 +6,8 @@ import { Dashboard } from './components/Dashboard';
 import { CustomersPage } from './pages/CustomersPage';
 import { Reports } from './components/Reports';
 import { Settings } from './components/Settings';
+import { ImportTransformPage } from './pages/ImportTransformPage';
+import { TransformExistingData } from './components/TransformExistingData';
 import { ToastContainer } from './components/Toast';
 import type { Page } from './types/navigation';
 
@@ -34,6 +36,10 @@ const AppContent: React.FC = () => {
         return <Reports />;
       case 'settings':
         return <Settings />;
+      case 'import_transform':
+        return <ImportTransformPage />;
+      case 'transform_existing':
+        return <TransformExistingData />;
       default:
         return null;
     }

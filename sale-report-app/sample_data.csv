@@ -1,0 +1,4 @@
+invoice_no,cust_cde,cust_name,IO_DATE,Invno,prod_cde,prod_cust_no,prod_name_ko,tariff_code,io_qty,rate_pre_unit,Amortisation_cost,supp_mat_cost,ASSESSABLE_VALUE,Supplier MAt Value,CGST_AMT,SGST_AMT,IGST_AMT,Total_Inv_Value
+INV001,CUST001,ABC Company Ltd,17/05/2025,INV001,PROD001,P001,Product Alpha,1234,10,100.00,50.00,20.00,1000.00,200.00,90.00,90.00,0.00,1180.00
+INV002,CUST002,XYZ Corporation,18/05/2025,INV002,PROD002,P002,Product Beta,5678,5,200.00,75.00,30.00,1000.00,300.00,0.00,0.00,180.00,1180.00
+INV003,CUST003,Global Industries,19/05/2025,INV003,PROD003,P003,Product Gamma,9012,15,50.00,25.00,10.00,750.00,150.00,67.50,67.50,0.00,885.00

@@ -1,6 +1,6 @@
 mod database;
 
-use database::{DatabaseManager, Company, Customer, CreateCustomerRequest, UpdateCustomerRequest, Category, CreateCategoryRequest, UpdateCategoryRequest};
+use database::{DatabaseManager, Company, UpdateCompanyRequest, Customer, CreateCustomerRequest, UpdateCustomerRequest, Category, CreateCategoryRequest, UpdateCategoryRequest, SalesReport, CreateSalesReportRequest, UpdateSalesReportRequest};
 use tauri::{State, Manager};
 use std::sync::Mutex;
 
@@ -25,6 +25,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_companies,
+            update_company,
             get_customers_by_company,
             search_customers,
             create_customer,
@@ -36,6 +37,14 @@ pub fn run() {
             create_category,
             update_category,
             delete_category,
+            get_sales_reports_by_company,
+            search_sales_reports,
+            create_sales_report,
+            update_sales_report,
+            delete_sales_report,
+            export_sales_reports_csv,
+            import_sales_reports_csv,
+            clear_all_data,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -45,6 +54,12 @@ pub fn run() {
 fn get_companies(db: State<DbState>) -> Result<Vec<Company>, String> {
     let db_manager = db.lock().map_err(|e| e.to_string())?;
     db_manager.get_companies().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn update_company(id: i32, company: UpdateCompanyRequest, db: State<DbState>) -> Result<bool, String> {
+    let db_manager = db.lock().map_err(|e| e.to_string())?;
+    db_manager.update_company(id, company).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -111,4 +126,53 @@ fn update_category(id: i32, category: UpdateCategoryRequest, db: State<DbState>)
 fn delete_category(id: i32, db: State<DbState>) -> Result<bool, String> {
     let db_manager = db.lock().map_err(|e| e.to_string())?;
     db_manager.delete_category(id).map_err(|e| e.to_string())
+}
+
+// Sales Report commands
+#[tauri::command]
+fn get_sales_reports_by_company(company_id: i32, db: State<DbState>) -> Result<Vec<SalesReport>, String> {
+    let db_manager = db.lock().map_err(|e| e.to_string())?;
+    db_manager.get_sales_reports_by_company(company_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn search_sales_reports(company_id: i32, search_term: String, db: State<DbState>) -> Result<Vec<SalesReport>, String> {
+    let db_manager = db.lock().map_err(|e| e.to_string())?;
+    db_manager.search_sales_reports(company_id, search_term).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn create_sales_report(report: CreateSalesReportRequest, db: State<DbState>) -> Result<i32, String> {
+    let db_manager = db.lock().map_err(|e| e.to_string())?;
+    db_manager.create_sales_report(report).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn update_sales_report(id: i32, report: UpdateSalesReportRequest, db: State<DbState>) -> Result<bool, String> {
+    let db_manager = db.lock().map_err(|e| e.to_string())?;
+    db_manager.update_sales_report(id, report).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn delete_sales_report(id: i32, db: State<DbState>) -> Result<bool, String> {
+    let db_manager = db.lock().map_err(|e| e.to_string())?;
+    db_manager.delete_sales_report(id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn export_sales_reports_csv(company_id: i32, db: State<DbState>) -> Result<String, String> {
+    let db_manager = db.lock().map_err(|e| e.to_string())?;
+    db_manager.export_sales_reports_csv(company_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn import_sales_reports_csv(company_id: i32, csv_data: String, db: State<DbState>) -> Result<i32, String> {
+    let db_manager = db.lock().map_err(|e| e.to_string())?;
+    db_manager.import_sales_reports_csv(company_id, csv_data).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn clear_all_data(db: State<DbState>) -> Result<(), String> {
+    let db_manager = db.lock().map_err(|e| e.to_string())?;
+    db_manager.clear_all_data().map_err(|e| e.to_string())
 }

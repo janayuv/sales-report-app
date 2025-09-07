@@ -1,30 +1,67 @@
-import React from 'react';
-import { FileText, Users, BarChart3, TrendingUp } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { FileText, Users, BarChart3, DollarSign } from 'lucide-react';
 import { useCompanyContext } from '../contexts/CompanyContext';
+import { dbManager } from '../utils/database';
+import type { SalesReport } from '../utils/database';
 
 export const Dashboard: React.FC = () => {
   const { selectedCompany } = useCompanyContext();
+  const [reports, setReports] = useState<SalesReport[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadReports = async () => {
+      if (!selectedCompany) return;
+
+      try {
+        setLoading(true);
+        const reportsList = await dbManager.getSalesReportsByCompany(
+          selectedCompany.id
+        );
+        setReports(reportsList);
+      } catch (error) {
+        console.error('Failed to load reports for dashboard:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadReports();
+  }, [selectedCompany]);
+
+  // Calculate statistics
+  const totalReports = reports.length;
+  const totalValue = reports.reduce(
+    (sum, report) => sum + (report.inv_val || 0),
+    0
+  );
+  const uniqueCustomers = new Set(reports.map(r => r.cust_code)).size;
+  const uniqueInvoices = new Set(reports.map(r => r.invno)).size;
 
   const statsCards = [
     {
       title: 'Total Reports',
-      value: '0',
+      value: loading ? '...' : totalReports.toLocaleString(),
       icon: FileText,
+      color: 'text-primary',
     },
     {
-      title: 'Total Customers',
-      value: '0',
+      title: 'Total Value',
+      value: loading ? '...' : `₹${totalValue.toLocaleString()}`,
+      icon: DollarSign,
+      color: 'text-green-500',
+    },
+    {
+      title: 'Unique Customers',
+      value: loading ? '...' : uniqueCustomers.toLocaleString(),
       icon: Users,
+      color: 'text-blue-500',
     },
     {
-      title: 'Conversions',
-      value: '0',
+      title: 'Unique Invoices',
+      value: loading ? '...' : uniqueInvoices.toLocaleString(),
       icon: BarChart3,
-    },
-    {
-      title: 'Growth Rate',
-      value: '0%',
-      icon: TrendingUp,
+      color: 'text-purple-500',
     },
   ];
 
@@ -43,10 +80,10 @@ export const Dashboard: React.FC = () => {
           return (
             <div
               key={index}
-              className="bg-card p-5 rounded-lg border border-border"
+              className="bg-card p-5 rounded-lg border border-border hover:shadow-md transition-shadow"
             >
               <div className="flex items-center gap-3">
-                <Icon className="text-primary" size={22} />
+                <Icon className={card.color} size={22} />
                 <div>
                   <p className="text-sm text-muted-foreground">{card.title}</p>
                   <p className="text-2xl font-bold text-foreground">
