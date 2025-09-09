@@ -9,7 +9,7 @@ on:
 jobs:
   accessibility-test:
     name: Accessibility Tests
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     
     steps:
       - name: Checkout code
@@ -23,14 +23,8 @@ jobs:
           cache-dependency-path: sale-report-app/package-lock.json
 
       - name: Setup Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.0-dev libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
 
       - name: Install dependencies
         working-directory: ./sale-report-app

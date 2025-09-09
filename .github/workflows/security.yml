@@ -27,9 +27,7 @@ jobs:
           cache-dependency-path: sale-report-app/package-lock.json
 
       - name: Setup Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install dependencies
         working-directory: ./sale-report-app
