@@ -927,9 +927,7 @@ impl DatabaseManager {
             )?;
 
             if existing_count > 0 {
-                println!(
-                    "Skipping row {row_index}: Customer '{customer_name}' already exists"
-                );
+                println!("Skipping row {row_index}: Customer '{customer_name}' already exists");
                 duplicate_count += 1;
                 continue;
             }
@@ -972,9 +970,7 @@ impl DatabaseManager {
             ])?;
 
             imported_count += 1;
-            println!(
-                "Successfully imported customer '{customer_name}' from row {row_index}"
-            );
+            println!("Successfully imported customer '{customer_name}' from row {row_index}");
         }
 
         println!(
@@ -1507,16 +1503,17 @@ impl DatabaseManager {
                             month.parse::<i32>(),
                             day.parse::<i32>(),
                         ) {
-                            if (1900..=2100).contains(&y) && (1..=12).contains(&m) && (1..=31).contains(&d) {
+                            if (1900..=2100).contains(&y)
+                                && (1..=12).contains(&m)
+                                && (1..=31).contains(&d)
+                            {
                                 return format!("{y:04}-{m:02}-{d:02}");
                             }
                         }
                     }
                 }
 
-                println!(
-                    "Warning: Invalid date format '{date_str}' in row {row_index}"
-                );
+                println!("Warning: Invalid date format '{date_str}' in row {row_index}");
                 String::new()
             };
 
@@ -1605,9 +1602,7 @@ impl DatabaseManager {
             }
 
             if inv_date.is_empty() {
-                println!(
-                    "Skipping row {row_index}: Missing or invalid invoice date"
-                );
+                println!("Skipping row {row_index}: Missing or invalid invoice date");
                 skipped_count += 1;
                 continue;
             }
@@ -1620,9 +1615,7 @@ impl DatabaseManager {
             )?;
 
             if existing_count > 0 {
-                println!(
-                    "Skipping row {row_index}: Invoice {invno} already exists"
-                );
+                println!("Skipping row {row_index}: Invoice {invno} already exists");
                 duplicate_count += 1;
                 continue;
             }
@@ -1676,9 +1669,7 @@ impl DatabaseManager {
 
             self.create_sales_report(report)?;
             imported_count += 1;
-            println!(
-                "Successfully imported invoice {invno} from row {row_index}"
-            );
+            println!("Successfully imported invoice {invno} from row {row_index}");
         }
 
         println!(

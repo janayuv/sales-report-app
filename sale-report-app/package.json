@@ -27,7 +27,8 @@
     "rust:clippy": "cd src-tauri && cargo clippy -- -D warnings",
     "rust:test": "cd src-tauri && cargo test",
     "type-check": "tsc --noEmit",
-    "check:all": "npm run type-check && npm run lint && npm run format:check && npm run test:run && npm run rust:fmt:check && npm run rust:clippy && npm run rust:test"
+    "check:all": "npm run type-check && npm run lint && npm run format:check && npm run test:run && npm run rust:fmt:check && npm run rust:clippy && npm run rust:test",
+    "validate:ci": "npm run check:all"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.0",

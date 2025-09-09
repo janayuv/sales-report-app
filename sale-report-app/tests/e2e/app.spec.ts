@@ -14,7 +14,7 @@ test.describe('Sales Report App', () => {
     const viewport = page.viewportSize();
     if (viewport && viewport.width < 768) {
       // On mobile, sidebar is collapsed by default
-      await expect(page.locator('[data-sidebar="trigger"]')).toBeVisible();
+      await expect(page.locator('[data-testid="sidebar-toggle"]')).toBeVisible();
     } else {
       // On desktop, sidebar should be visible
       await expect(page.locator('[data-testid="sidebar"]')).toBeVisible();
@@ -22,7 +22,7 @@ test.describe('Sales Report App', () => {
 
     // Check for main navigation (open sidebar on mobile first)
     if (viewport && viewport.width < 768) {
-      await page.locator('[data-sidebar="trigger"]').click();
+      await page.locator('[data-testid="sidebar-toggle"]').click();
     }
     
     await expect(page.locator('[data-testid="nav-dashboard"]')).toBeVisible();
@@ -55,7 +55,7 @@ test.describe('Sales Report App', () => {
     // On mobile, open sidebar first
     const viewport = page.viewportSize();
     if (viewport && viewport.width < 768) {
-      await page.locator('[data-sidebar="trigger"]').click();
+      await page.locator('[data-testid="sidebar-toggle"]').click();
     }
 
     // Check that company selector is present
@@ -89,7 +89,7 @@ test.describe('Sales Report App', () => {
     // On mobile, open sidebar first
     const viewport = page.viewportSize();
     if (viewport && viewport.width < 768) {
-      await page.locator('[data-sidebar="trigger"]').click();
+      await page.locator('[data-testid="sidebar-toggle"]').click();
     }
 
     // Check that theme toggle is present
