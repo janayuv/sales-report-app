@@ -23,7 +23,7 @@ export const downloadFile = (
 };
 
 export const downloadExcelFile = (
-  data: any[],
+  data: Record<string, unknown>[],
   filename: string,
   sheetName: string = 'Sheet1'
 ) => {
@@ -47,7 +47,10 @@ export const downloadExcelFile = (
   URL.revokeObjectURL(url);
 };
 
-export const downloadCSVFile = (data: any[], filename: string) => {
+export const downloadCSVFile = (
+  data: Record<string, unknown>[],
+  filename: string
+) => {
   if (data.length === 0) {
     throw new Error('No data to export');
   }
@@ -75,13 +78,16 @@ export const downloadCSVFile = (data: any[], filename: string) => {
   downloadFile(csvContent, filename, 'text/csv');
 };
 
-export const downloadJSONFile = (data: any[], filename: string) => {
+export const downloadJSONFile = (
+  data: Record<string, unknown>[],
+  filename: string
+) => {
   const jsonContent = JSON.stringify(data, null, 2);
   downloadFile(jsonContent, filename, 'application/json');
 };
 
 export const downloadPDFFile = (
-  data: any[],
+  data: Record<string, unknown>[],
   filename: string,
   title: string = 'Sales Reports'
 ) => {
@@ -144,7 +150,7 @@ export const downloadPDFFile = (
 };
 
 export const downloadFormattedExcel = (
-  data: any[],
+  data: Record<string, unknown>[],
   filename: string,
   sheetName: string = 'Sales Reports',
   includeSummary: boolean = true
@@ -166,13 +172,16 @@ export const downloadFormattedExcel = (
         'Invoice No': '',
         Date: '',
         'Assessable Value': data.reduce(
-          (sum, row) => sum + (row.ass_val || 0),
+          (sum, row) => sum + (Number(row.ass_val) || 0),
           0
         ),
-        CGST: data.reduce((sum, row) => sum + (row.c_gst || 0), 0),
-        SGST: data.reduce((sum, row) => sum + (row.s_gst || 0), 0),
-        IGST: data.reduce((sum, row) => sum + (row.igst || 0), 0),
-        'Invoice Total': data.reduce((sum, row) => sum + (row.inv_val || 0), 0),
+        CGST: data.reduce((sum, row) => sum + (Number(row.c_gst) || 0), 0),
+        SGST: data.reduce((sum, row) => sum + (Number(row.s_gst) || 0), 0),
+        IGST: data.reduce((sum, row) => sum + (Number(row.igst) || 0), 0),
+        'Invoice Total': data.reduce(
+          (sum, row) => sum + (Number(row.inv_val) || 0),
+          0
+        ),
         Actions: '',
       };
 
@@ -185,7 +194,10 @@ export const downloadFormattedExcel = (
           r: summaryRowIndex,
           c: colIndex,
         });
-        worksheet[cellAddress] = { v: (summaryRow as any)[key], t: 's' };
+        worksheet[cellAddress] = {
+          v: (summaryRow as Record<string, unknown>)[key],
+          t: 's',
+        };
       });
     }
   }
@@ -224,16 +236,136 @@ export const readFileAsText = (file: File): Promise<string> => {
   });
 };
 
-export const readExcelFile = (file: File): Promise<any[]> => {
+export const readCSVFile = (file: File): Promise<Record<string, unknown>[]> => {
   return new Promise((resolve, reject) => {
+    console.log('Starting to read CSV file:', file.name, 'Size:', file.size);
+
     const reader = new FileReader();
     reader.onload = e => {
       try {
+        console.log('CSV file read completed, parsing data...');
+        const content = e.target?.result as string;
+
+        if (!content) {
+          reject(new Error('No content received from CSV file'));
+          return;
+        }
+
+        // Split into lines and filter out empty lines
+        const lines = content
+          .split('\n')
+          .filter(line => line.trim().length > 0);
+
+        if (lines.length < 2) {
+          reject(
+            new Error(
+              'CSV file must contain at least a header row and one data row'
+            )
+          );
+          return;
+        }
+
+        // Parse CSV manually (simple approach)
+        const parseCSVLine = (line: string): string[] => {
+          const result: string[] = [];
+          let current = '';
+          let inQuotes = false;
+
+          for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+
+            if (char === '"') {
+              inQuotes = !inQuotes;
+            } else if (char === ',' && !inQuotes) {
+              result.push(current.trim());
+              current = '';
+            } else {
+              current += char;
+            }
+          }
+
+          result.push(current.trim());
+          return result;
+        };
+
+        // Parse header row
+        const headers = parseCSVLine(lines[0]);
+        console.log('CSV headers parsed:', headers);
+
+        // Parse data rows
+        const dataRows = lines.slice(1).map(line => parseCSVLine(line));
+        console.log('CSV data rows parsed:', dataRows.length);
+
+        // Convert to object format
+        const result = dataRows.map(row => {
+          const obj: Record<string, unknown> = {};
+          headers.forEach((header, index) => {
+            let value = row[index] || '';
+
+            // Clean the value if it's a string
+            if (typeof value === 'string') {
+              // Remove currency symbols
+              value = value.replace(/[₹$€£¥]/g, '');
+
+              // Replace line breaks with spaces and normalize whitespace
+              value = value.replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim();
+            }
+
+            obj[header] = value;
+          });
+          return obj;
+        });
+
+        console.log('CSV file processed successfully, records:', result.length);
+        resolve(result);
+      } catch (error) {
+        console.error('Error parsing CSV file:', error);
+        reject(new Error(`Failed to parse CSV file: ${error}`));
+      }
+    };
+    reader.onerror = () => {
+      console.error('FileReader error occurred for CSV');
+      reject(new Error('Failed to read CSV file'));
+    };
+    reader.readAsText(file);
+  });
+};
+
+export const readExcelFile = (
+  file: File
+): Promise<Record<string, unknown>[]> => {
+  return new Promise((resolve, reject) => {
+    console.log('Starting to read Excel file:', file.name, 'Size:', file.size);
+
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        console.log('File read completed, parsing Excel data...');
         const data = e.target?.result;
+
+        if (!data) {
+          reject(new Error('No data received from file'));
+          return;
+        }
+
         const workbook = XLSX.read(data, { type: 'binary' });
+        console.log('Workbook parsed, sheet names:', workbook.SheetNames);
+
+        if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+          reject(new Error('No sheets found in Excel file'));
+          return;
+        }
+
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
+
+        if (!worksheet) {
+          reject(new Error(`Sheet "${sheetName}" not found`));
+          return;
+        }
+
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        console.log('JSON data extracted, rows:', jsonData.length);
 
         if (jsonData.length < 2) {
           reject(
@@ -246,36 +378,47 @@ export const readExcelFile = (file: File): Promise<any[]> => {
 
         // Convert to object format
         const headers = jsonData[0] as string[];
-        const rows = jsonData.slice(1) as any[][];
+        const rows = jsonData.slice(1) as unknown[][];
 
         const result = rows.map(row => {
-          const obj: any = {};
+          const obj: Record<string, unknown> = {};
           headers.forEach((header, index) => {
-            let value = row[index] || '';
-            
+            let value: unknown = row[index] || '';
+
             // Clean the value if it's a string
             if (typeof value === 'string') {
               // Remove currency symbols
-              value = value.replace(/[₹$€£¥]/g, '');
-              
+              value = (value as string).replace(/[₹$€£¥]/g, '');
+
               // Replace line breaks with spaces and normalize whitespace
-              value = value
+              value = (value as string)
                 .replace(/\r?\n/g, ' ')
                 .replace(/\s+/g, ' ')
                 .trim();
+            } else if (typeof value !== 'string' && typeof value !== 'number') {
+              // Convert other types to string
+              value = String(value);
             }
-            
+
             obj[header] = value;
           });
           return obj;
         });
 
+        console.log(
+          'Excel file processed successfully, records:',
+          result.length
+        );
         resolve(result);
       } catch (error) {
+        console.error('Error parsing Excel file:', error);
         reject(new Error(`Failed to parse Excel file: ${error}`));
       }
     };
-    reader.onerror = () => reject(new Error('Failed to read Excel file'));
+    reader.onerror = () => {
+      console.error('FileReader error occurred');
+      reject(new Error('Failed to read Excel file'));
+    };
     reader.readAsBinaryString(file);
   });
 };

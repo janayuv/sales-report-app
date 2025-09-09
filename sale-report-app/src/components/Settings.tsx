@@ -92,8 +92,13 @@ export const Settings: React.FC = () => {
   const handleResetCompanies = async () => {
     try {
       // Reset companies to default values (development mode only)
-      if (typeof window !== 'undefined' && !(window as any).__TAURI__) {
-        (dbManager as any).resetDevCompaniesToDefault();
+      if (
+        typeof window !== 'undefined' &&
+        !(window as unknown as { __TAURI__?: unknown }).__TAURI__
+      ) {
+        (
+          dbManager as unknown as { resetDevCompaniesToDefault: () => void }
+        ).resetDevCompaniesToDefault();
         await loadCompanies();
         showToast.success('Companies reset to default values');
       } else {

@@ -6,9 +6,11 @@ import {
 } from '../contexts/ThemeContext';
 import { Sun, Moon, Monitor, Palette, ChevronDown } from 'lucide-react';
 import { cn } from '../utils/cn';
+import { useSidebar } from './ui/sidebar';
 
 export const ThemeToggle: React.FC = () => {
   const { theme, accentColor, setTheme, setAccentColor } = useTheme();
+  const { isMobile, setOpenMobile } = useSidebar();
   const [showThemeMenu, setShowThemeMenu] = useState(false);
   const [showColorMenu, setShowColorMenu] = useState(false);
 
@@ -36,7 +38,7 @@ export const ThemeToggle: React.FC = () => {
   return (
     <div className="flex items-center gap-2">
       {/* Theme Toggle */}
-      <div className="relative">
+      <div className="relative z-[120]">
         <button
           data-testid="theme-toggle"
           onClick={() => setShowThemeMenu(!showThemeMenu)}
@@ -58,13 +60,17 @@ export const ThemeToggle: React.FC = () => {
         </button>
 
         {showThemeMenu && (
-          <div className="absolute right-0 top-full mt-1 w-32 bg-card border border-border rounded-md shadow-lg z-50">
+          <div className="absolute right-0 top-full mt-1 w-32 bg-card border border-border rounded-md shadow-lg z-[110]">
             {themeOptions.map(option => (
               <button
                 key={option.value}
                 onClick={() => {
                   setTheme(option.value);
                   setShowThemeMenu(false);
+                  // Close mobile sidebar if open
+                  if (isMobile) {
+                    setOpenMobile(false);
+                  }
                 }}
                 className={cn(
                   'flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent transition-colors',
@@ -100,7 +106,7 @@ export const ThemeToggle: React.FC = () => {
         </button>
 
         {showColorMenu && (
-          <div className="absolute right-0 top-full mt-1 w-48 bg-card border border-border rounded-md shadow-lg z-50 p-2">
+          <div className="absolute right-0 top-full mt-1 w-48 bg-card border border-border rounded-md shadow-lg z-[110] p-2">
             <div className="grid grid-cols-4 gap-2">
               {colorOptions.map(option => (
                 <button
@@ -108,6 +114,10 @@ export const ThemeToggle: React.FC = () => {
                   onClick={() => {
                     setAccentColor(option.value);
                     setShowColorMenu(false);
+                    // Close mobile sidebar if open
+                    if (isMobile) {
+                      setOpenMobile(false);
+                    }
                   }}
                   className={cn(
                     'flex flex-col items-center gap-1 p-2 rounded-md hover:bg-accent transition-colors',
@@ -127,15 +137,23 @@ export const ThemeToggle: React.FC = () => {
       {/* Click outside to close menus */}
       {(showThemeMenu || showColorMenu) && (
         <div
-          className="fixed inset-0 z-40"
+          className="fixed inset-0 z-[100]"
           onClick={() => {
             setShowThemeMenu(false);
             setShowColorMenu(false);
+            // Close mobile sidebar if open
+            if (isMobile) {
+              setOpenMobile(false);
+            }
           }}
           onKeyDown={e => {
             if (e.key === 'Escape') {
               setShowThemeMenu(false);
               setShowColorMenu(false);
+              // Close mobile sidebar if open
+              if (isMobile) {
+                setOpenMobile(false);
+              }
             }
           }}
           role="button"

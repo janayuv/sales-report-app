@@ -11,7 +11,7 @@ import { TransformationEngine } from './transformationEngine';
  * Convert database SalesReport records to transformation input format
  */
 export function convertDatabaseToTransformationInput(reports: SalesReport[]): {
-  inputData: any[];
+  inputData: Record<string, unknown>[];
   sourceHeaders: string[];
 } {
   if (reports.length === 0) {

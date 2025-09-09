@@ -1,8 +1,7 @@
 use rusqlite::{Connection, Result};
 use serde::{Deserialize, Serialize};
-use tauri::AppHandle;
 use std::io::Cursor;
-
+use tauri::AppHandle;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Company {
@@ -28,6 +27,7 @@ pub struct Category {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[allow(non_snake_case)]
 pub struct SalesReport {
     pub id: i32,
     pub company_id: i32,
@@ -53,6 +53,7 @@ pub struct SalesReport {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(non_snake_case)]
 pub struct CreateSalesReportRequest {
     pub company_id: i32,
     pub cust_code: String,
@@ -76,6 +77,17 @@ pub struct CreateSalesReportRequest {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct SalesReportFilters {
+    pub date_from: Option<String>,
+    pub date_to: Option<String>,
+    pub customer: Option<String>,
+    pub invoice: Option<String>,
+    pub min_amount: Option<f64>,
+    pub max_amount: Option<f64>,
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(non_snake_case)]
 pub struct UpdateSalesReportRequest {
     pub cust_code: Option<String>,
     pub cust_name: Option<String>,
@@ -148,11 +160,11 @@ impl DatabaseManager {
         // For now, use a local database file
         let db_path = "sales_report.db";
         let conn = Connection::open(db_path)?;
-        
+
         let manager = DatabaseManager { conn };
         manager.create_tables()?;
         manager.seed_initial_data()?;
-        
+
         Ok(manager)
     }
 
@@ -307,16 +319,70 @@ impl DatabaseManager {
             [],
         )?;
 
+        // Create indexes for better performance
+        self.create_indexes()?;
+
+        Ok(())
+    }
+
+    fn create_indexes(&self) -> Result<()> {
+        // Indexes for sales_reports table
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sales_reports_company_id ON sales_reports(company_id)",
+            [],
+        )?;
+
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sales_reports_inv_date ON sales_reports(inv_date)",
+            [],
+        )?;
+
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sales_reports_cust_code ON sales_reports(cust_code)",
+            [],
+        )?;
+
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sales_reports_invno ON sales_reports(invno)",
+            [],
+        )?;
+
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sales_reports_company_inv_date ON sales_reports(company_id, inv_date)",
+            [],
+        )?;
+
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sales_reports_company_cust ON sales_reports(company_id, cust_code)",
+            [],
+        )?;
+
+        // Indexes for customers table
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_customers_company_id ON customers(company_id)",
+            [],
+        )?;
+
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(customer_name)",
+            [],
+        )?;
+
+        // Indexes for categories table
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_categories_company_id ON categories(company_id)",
+            [],
+        )?;
+
+        println!("Database indexes created successfully");
         Ok(())
     }
 
     fn seed_initial_data(&self) -> Result<()> {
         // Check if companies already exist
-        let count: i32 = self.conn.query_row(
-            "SELECT COUNT(*) FROM companies",
-            [],
-            |row| row.get(0),
-        )?;
+        let count: i32 = self
+            .conn
+            .query_row("SELECT COUNT(*) FROM companies", [], |row| row.get(0))?;
 
         if count == 0 {
             // Insert Company A and Company B
@@ -350,9 +416,9 @@ impl DatabaseManager {
     }
 
     pub fn get_companies(&self) -> Result<Vec<Company>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT id, name, key, created_at FROM companies ORDER BY name",
-        )?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT id, name, key, created_at FROM companies ORDER BY name")?;
 
         let companies = stmt.query_map([], |row| {
             Ok(Company {
@@ -369,10 +435,10 @@ impl DatabaseManager {
     // Clear all data from database (development utility)
     pub fn clear_all_data(&self) -> Result<()> {
         println!("Clearing all data from database...");
-        
+
         // Disable foreign key constraints temporarily
         self.conn.execute("PRAGMA foreign_keys = OFF", [])?;
-        
+
         // Clear all tables in reverse dependency order to avoid foreign key constraints
         self.conn.execute("DELETE FROM invoice_mappings", [])?;
         self.conn.execute("DELETE FROM audit_logs", [])?;
@@ -383,21 +449,19 @@ impl DatabaseManager {
         self.conn.execute("DELETE FROM customers", [])?;
         self.conn.execute("DELETE FROM categories", [])?;
         self.conn.execute("DELETE FROM companies", [])?;
-        
+
         // Reset auto-increment counters
         self.conn.execute("DELETE FROM sqlite_sequence", [])?;
-        
+
         // Re-enable foreign key constraints
         self.conn.execute("PRAGMA foreign_keys = ON", [])?;
-        
+
         // Verify that customers table is empty
-        let customer_count: i32 = self.conn.query_row(
-            "SELECT COUNT(*) FROM customers",
-            [],
-            |row| row.get(0),
-        )?;
-        
-        println!("Customer records remaining after clear: {}", customer_count);
+        let customer_count: i32 =
+            self.conn
+                .query_row("SELECT COUNT(*) FROM customers", [], |row| row.get(0))?;
+
+        println!("Customer records remaining after clear: {customer_count}");
         println!("All data cleared successfully");
         Ok(())
     }
@@ -420,10 +484,7 @@ impl DatabaseManager {
         }
 
         params.push(id.to_string());
-        let sql = format!(
-            "UPDATE companies SET {} WHERE id = ?",
-            updates.join(", ")
-        );
+        let sql = format!("UPDATE companies SET {} WHERE id = ?", updates.join(", "));
 
         let mut stmt = self.conn.prepare(&sql)?;
         let rows_affected = stmt.execute(rusqlite::params_from_iter(params.iter()))?;
@@ -458,7 +519,7 @@ impl DatabaseManager {
     }
 
     pub fn search_customers(&self, company_id: i32, search_term: String) -> Result<Vec<Customer>> {
-        let search_pattern = format!("%{}%", search_term);
+        let search_pattern = format!("%{search_term}%");
         let mut stmt = self.conn.prepare(
             "SELECT c.id, c.company_id, c.customer_name, c.tally_name, c.gst_no, 
                     c.category_id, cat.name as category_name, c.created_at
@@ -470,7 +531,13 @@ impl DatabaseManager {
         )?;
 
         let customers = stmt.query_map(
-            rusqlite::params![company_id, search_pattern, search_pattern, search_pattern, search_pattern],
+            rusqlite::params![
+                company_id,
+                search_pattern,
+                search_pattern,
+                search_pattern,
+                search_pattern
+            ],
             |row| {
                 Ok(Customer {
                     id: row.get(0)?,
@@ -482,7 +549,7 @@ impl DatabaseManager {
                     category_name: row.get(6)?,
                     created_at: row.get(7)?,
                 })
-            }
+            },
         )?;
 
         customers.collect()
@@ -531,10 +598,7 @@ impl DatabaseManager {
         }
 
         params.push(id.to_string());
-        let sql = format!(
-            "UPDATE customers SET {} WHERE id = ?",
-            updates.join(", ")
-        );
+        let sql = format!("UPDATE customers SET {} WHERE id = ?", updates.join(", "));
 
         let mut stmt = self.conn.prepare(&sql)?;
         let rows_affected = stmt.execute(rusqlite::params_from_iter(params.iter()))?;
@@ -631,47 +695,46 @@ impl DatabaseManager {
             })
         })?;
 
-        Ok(rows.next().transpose()?)
+        rows.next().transpose()
     }
 
     // Database migration method
     fn migrate_database(&self) -> Result<()> {
         // Check if the old 'category' column exists
-        let mut stmt = self.conn.prepare(
-            "SELECT COUNT(*) FROM pragma_table_info('customers') WHERE name='category'"
-        )?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT COUNT(*) FROM pragma_table_info('customers') WHERE name='category'")?;
         let old_column_exists: i32 = stmt.query_row([], |row| row.get(0))?;
 
         if old_column_exists > 0 {
             // Migration needed: old schema exists
             println!("Migrating database from old schema to new schema...");
-            
+
             // Add category_id column if it doesn't exist
-            self.conn.execute(
-                "ALTER TABLE customers ADD COLUMN category_id INTEGER",
-                [],
-            ).ok(); // Ignore error if column already exists
+            self.conn
+                .execute("ALTER TABLE customers ADD COLUMN category_id INTEGER", [])
+                .ok(); // Ignore error if column already exists
 
             // Migrate existing category data to categories table
             let mut stmt = self.conn.prepare(
                 "SELECT DISTINCT company_id, category FROM customers WHERE category IS NOT NULL AND category != ''"
             )?;
-            
+
             let category_rows = stmt.query_map([], |row| {
                 Ok((row.get::<_, i32>(0)?, row.get::<_, String>(1)?))
             })?;
 
             for row_result in category_rows {
                 let (company_id, category_name) = row_result?;
-                
+
                 // Check if category already exists
-                let mut check_stmt = self.conn.prepare(
-                    "SELECT id FROM categories WHERE company_id = ? AND name = ?"
-                )?;
-                let existing_category: Result<i32, _> = check_stmt.query_row(
-                    rusqlite::params![company_id, category_name], 
-                    |row| row.get(0)
-                );
+                let mut check_stmt = self
+                    .conn
+                    .prepare("SELECT id FROM categories WHERE company_id = ? AND name = ?")?;
+                let existing_category: Result<i32, _> = check_stmt
+                    .query_row(rusqlite::params![company_id, category_name], |row| {
+                        row.get(0)
+                    });
 
                 let category_id = match existing_category {
                     Ok(id) => id,
@@ -680,13 +743,17 @@ impl DatabaseManager {
                         let mut insert_stmt = self.conn.prepare(
                             "INSERT INTO categories (company_id, name, description) VALUES (?, ?, ?)"
                         )?;
-                        insert_stmt.insert(rusqlite::params![company_id, category_name, None::<String>])? as i32
+                        insert_stmt.insert(rusqlite::params![
+                            company_id,
+                            category_name,
+                            None::<String>
+                        ])? as i32
                     }
                 };
 
                 // Update customers with the new category_id
                 let mut update_stmt = self.conn.prepare(
-                    "UPDATE customers SET category_id = ? WHERE company_id = ? AND category = ?"
+                    "UPDATE customers SET category_id = ? WHERE company_id = ? AND category = ?",
                 )?;
                 update_stmt.execute(rusqlite::params![category_id, company_id, category_name])?;
             }
@@ -702,45 +769,62 @@ impl DatabaseManager {
 
     pub fn export_customers_csv(&self, company_id: i32) -> Result<String> {
         let customers = self.get_customers_by_company(company_id)?;
-        
+
         let mut wtr = csv::Writer::from_writer(Cursor::new(Vec::new()));
-        
+
         // Write header
-        wtr.write_record(&["Customer Name", "Tally Name", "GST No", "Category", "Created At"])
-            .map_err(|e| rusqlite::Error::SqliteFailure(
+        wtr.write_record([
+            "Customer Name",
+            "Tally Name",
+            "GST No",
+            "Category",
+            "Created At",
+        ])
+        .map_err(|e| {
+            rusqlite::Error::SqliteFailure(
                 rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_MISUSE),
-                Some(format!("CSV write error: {}", e))
-            ))?;
-        
+                Some(format!("CSV write error: {e}")),
+            )
+        })?;
+
         // Write data
         for customer in customers {
-            wtr.write_record(&[
+            wtr.write_record([
                 &customer.customer_name,
                 &customer.tally_name,
                 customer.gst_no.as_deref().unwrap_or(""),
                 customer.category_name.as_deref().unwrap_or(""),
                 &customer.created_at,
-            ]).map_err(|e| rusqlite::Error::SqliteFailure(
-                rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_MISUSE),
-                Some(format!("CSV write error: {}", e))
-            ))?;
+            ])
+            .map_err(|e| {
+                rusqlite::Error::SqliteFailure(
+                    rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_MISUSE),
+                    Some(format!("CSV write error: {e}")),
+                )
+            })?;
         }
-        
-        wtr.flush().map_err(|e| rusqlite::Error::SqliteFailure(
-            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_MISUSE),
-            Some(format!("CSV flush error: {}", e))
-        ))?;
-        
-        let data = wtr.into_inner().map_err(|e| rusqlite::Error::SqliteFailure(
-            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_MISUSE),
-            Some(format!("CSV inner error: {}", e))
-        ))?;
-        
-        let csv_string = String::from_utf8(data.into_inner()).map_err(|e| rusqlite::Error::SqliteFailure(
-            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_MISUSE),
-            Some(format!("UTF-8 error: {}", e))
-        ))?;
-        
+
+        wtr.flush().map_err(|e| {
+            rusqlite::Error::SqliteFailure(
+                rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_MISUSE),
+                Some(format!("CSV flush error: {e}")),
+            )
+        })?;
+
+        let data = wtr.into_inner().map_err(|e| {
+            rusqlite::Error::SqliteFailure(
+                rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_MISUSE),
+                Some(format!("CSV inner error: {e}")),
+            )
+        })?;
+
+        let csv_string = String::from_utf8(data.into_inner()).map_err(|e| {
+            rusqlite::Error::SqliteFailure(
+                rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_MISUSE),
+                Some(format!("UTF-8 error: {e}")),
+            )
+        })?;
+
         Ok(csv_string)
     }
 
@@ -749,35 +833,51 @@ impl DatabaseManager {
         let mut imported_count = 0;
         let mut skipped_count = 0;
         let mut duplicate_count = 0;
-        
+
         // Read headers first
-        let headers: Vec<String> = rdr.headers().map_err(|e| rusqlite::Error::SqliteFailure(
-            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_MISUSE),
-            Some(format!("CSV header error: {}", e))
-        ))?.iter().map(|h| h.to_string()).collect();
-        println!("Customer CSV Headers: {:?}", headers);
-        
+        let headers: Vec<String> = rdr
+            .headers()
+            .map_err(|e| {
+                rusqlite::Error::SqliteFailure(
+                    rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_MISUSE),
+                    Some(format!("CSV header error: {e}")),
+                )
+            })?
+            .iter()
+            .map(|h| h.to_string())
+            .collect();
+        println!("Customer CSV Headers: {headers:?}");
+
         // Create header mapping for flexible column access
-        let header_map: std::collections::HashMap<String, usize> = headers.iter()
+        let header_map: std::collections::HashMap<String, usize> = headers
+            .iter()
             .enumerate()
             .map(|(i, h)| (h.to_lowercase().replace(" ", "_"), i))
             .collect();
-        
-        println!("Customer Header mapping: {:?}", header_map);
-        
+
+        println!("Customer Header mapping: {header_map:?}");
+
         for (row_num, result) in rdr.records().enumerate() {
-            let record = result.map_err(|e| rusqlite::Error::SqliteFailure(
-                rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_MISUSE),
-                Some(format!("CSV read error: {}", e))
-            ))?;
+            let record = result.map_err(|e| {
+                rusqlite::Error::SqliteFailure(
+                    rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_MISUSE),
+                    Some(format!("CSV read error: {e}")),
+                )
+            })?;
             let row_index = row_num + 2; // +2 because we're 0-indexed and skipped header row
-            
-            println!("Processing customer row {} with {} columns", row_index, record.len());
-            
+
+            println!(
+                "Processing customer row {} with {} columns",
+                row_index,
+                record.len()
+            );
+
             // Helper function to get field value by header name and clean it
             let get_field = |field_names: &[&str]| -> String {
                 for field_name in field_names {
-                    if let Some(&col_index) = header_map.get(&field_name.to_lowercase().replace(" ", "_")) {
+                    if let Some(&col_index) =
+                        header_map.get(&field_name.to_lowercase().replace(" ", "_"))
+                    {
                         if col_index < record.len() {
                             let value = record.get(col_index).unwrap_or("").to_string();
                             // Remove surrounding quotes and trim whitespace
@@ -787,44 +887,60 @@ impl DatabaseManager {
                 }
                 String::new()
             };
-            
+
             // Extract fields using flexible header mapping
-            let customer_name = get_field(&["customer_name", "cust_name", "client_name", "company_name", "name"]);
-            let tally_name = get_field(&["tally_name", "tally_code", "customer_code", "cust_code", "code"]);
+            let customer_name = get_field(&[
+                "customer_name",
+                "cust_name",
+                "client_name",
+                "company_name",
+                "name",
+            ]);
+            let tally_name = get_field(&[
+                "tally_name",
+                "tally_code",
+                "customer_code",
+                "cust_code",
+                "code",
+            ]);
             let gst_no = get_field(&["gst_no", "gst_number", "gst", "tax_id", "tin"]);
             let category_name = get_field(&["category", "customer_category", "type", "group"]);
-            
+
             // Validate required fields
             if customer_name.is_empty() {
-                println!("Skipping row {}: Missing customer name", row_index);
+                println!("Skipping row {row_index}: Missing customer name");
                 skipped_count += 1;
                 continue;
             }
-            
+
             if tally_name.is_empty() {
-                println!("Skipping row {}: Missing tally name", row_index);
+                println!("Skipping row {row_index}: Missing tally name");
                 skipped_count += 1;
                 continue;
             }
-            
+
             // Check if customer already exists
             let existing_count: i32 = self.conn.query_row(
                 "SELECT COUNT(*) FROM customers WHERE company_id = ? AND customer_name = ?",
                 rusqlite::params![company_id, customer_name],
                 |row| row.get(0),
             )?;
-            
+
             if existing_count > 0 {
-                println!("Skipping row {}: Customer '{}' already exists", row_index, customer_name);
+                println!(
+                    "Skipping row {row_index}: Customer '{customer_name}' already exists"
+                );
                 duplicate_count += 1;
                 continue;
             }
-            
+
             // Handle category - create if it doesn't exist
             let mut category_id: Option<i32> = None;
             if !category_name.is_empty() {
                 // Check if category exists
-                if let Some(existing_category) = self.get_category_by_name(company_id, &category_name)? {
+                if let Some(existing_category) =
+                    self.get_category_by_name(company_id, &category_name)?
+                {
                     category_id = Some(existing_category.id);
                 } else {
                     // Create new category
@@ -836,28 +952,35 @@ impl DatabaseManager {
                     category_id = Some(self.create_category(new_category)?);
                 }
             }
-            
+
             // Insert new customer
             let mut stmt = self.conn.prepare(
                 "INSERT INTO customers (company_id, customer_name, tally_name, gst_no, category_id) 
                  VALUES (?, ?, ?, ?, ?)",
             )?;
-            
+
             stmt.execute(rusqlite::params![
                 company_id,
                 customer_name,
                 tally_name,
-                if gst_no.is_empty() { None } else { Some(gst_no) },
+                if gst_no.is_empty() {
+                    None
+                } else {
+                    Some(gst_no)
+                },
                 category_id,
             ])?;
-            
+
             imported_count += 1;
-            println!("Successfully imported customer '{}' from row {}", customer_name, row_index);
+            println!(
+                "Successfully imported customer '{customer_name}' from row {row_index}"
+            );
         }
-        
-        println!("Customer import completed: {} imported, {} skipped, {} duplicates", 
-                 imported_count, skipped_count, duplicate_count);
-        
+
+        println!(
+            "Customer import completed: {imported_count} imported, {skipped_count} skipped, {duplicate_count} duplicates"
+        );
+
         Ok(imported_count)
     }
 
@@ -869,9 +992,9 @@ impl DatabaseManager {
                     c_gst, s_gst, igst, amot, inv_val, igst_yes_no, percentage, created_at 
              FROM sales_reports 
              WHERE company_id = ? 
-             ORDER BY inv_date DESC, invno"
+             ORDER BY inv_date DESC, invno",
         )?;
-        
+
         let rows = stmt.query_map([company_id], |row| {
             Ok(SalesReport {
                 id: row.get(0)?,
@@ -897,17 +1020,157 @@ impl DatabaseManager {
                 created_at: row.get(20)?,
             })
         })?;
-        
+
         let mut reports = Vec::new();
         for row in rows {
             reports.push(row?);
         }
-        
+
         Ok(reports)
     }
 
-    pub fn search_sales_reports(&self, company_id: i32, search_term: String) -> Result<Vec<SalesReport>> {
-        let search_pattern = format!("%{}%", search_term);
+    // Paginated sales reports with filtering
+    pub fn get_sales_reports_paginated(
+        &self,
+        company_id: i32,
+        page: i32,
+        page_size: i32,
+        filters: Option<SalesReportFilters>,
+    ) -> Result<(Vec<SalesReport>, i32)> {
+        let offset = (page - 1) * page_size;
+
+        // Build WHERE clause based on filters
+        let mut where_clauses = vec!["company_id = ?".to_string()];
+        let mut params: Vec<Box<dyn rusqlite::ToSql>> = vec![Box::new(company_id)];
+
+        if let Some(f) = filters {
+            if let Some(date_from) = f.date_from {
+                where_clauses.push("inv_date >= ?".to_string());
+                params.push(Box::new(date_from));
+            }
+            if let Some(date_to) = f.date_to {
+                where_clauses.push("inv_date <= ?".to_string());
+                params.push(Box::new(date_to));
+            }
+            // Universal search - if both customer and invoice are the same, search across all fields
+            if let (Some(customer), Some(invoice)) = (&f.customer, &f.invoice) {
+                if customer == invoice && !customer.is_empty() {
+                    where_clauses.push("(cust_name LIKE ? OR cust_code LIKE ? OR invno LIKE ? OR part_name LIKE ? OR part_code LIKE ?)".to_string());
+                    let search_pattern = format!("%{customer}%");
+                    params.push(Box::new(search_pattern.clone()));
+                    params.push(Box::new(search_pattern.clone()));
+                    params.push(Box::new(search_pattern.clone()));
+                    params.push(Box::new(search_pattern.clone()));
+                    params.push(Box::new(search_pattern));
+                } else {
+                    // Individual field searches
+                    if !customer.is_empty() {
+                        where_clauses.push("(cust_name LIKE ? OR cust_code LIKE ?)".to_string());
+                        let customer_pattern = format!("%{customer}%");
+                        params.push(Box::new(customer_pattern.clone()));
+                        params.push(Box::new(customer_pattern));
+                    }
+                    if !invoice.is_empty() {
+                        where_clauses.push("invno LIKE ?".to_string());
+                        params.push(Box::new(format!("%{invoice}%")));
+                    }
+                }
+            } else {
+                // Individual field searches when only one is provided
+                if let Some(customer) = &f.customer {
+                    if !customer.is_empty() {
+                        where_clauses.push("(cust_name LIKE ? OR cust_code LIKE ?)".to_string());
+                        let customer_pattern = format!("%{customer}%");
+                        params.push(Box::new(customer_pattern.clone()));
+                        params.push(Box::new(customer_pattern));
+                    }
+                }
+                if let Some(invoice) = &f.invoice {
+                    if !invoice.is_empty() {
+                        where_clauses.push("invno LIKE ?".to_string());
+                        params.push(Box::new(format!("%{invoice}%")));
+                    }
+                }
+            }
+            if let Some(min_amount) = f.min_amount {
+                where_clauses.push("inv_val >= ?".to_string());
+                params.push(Box::new(min_amount));
+            }
+            if let Some(max_amount) = f.max_amount {
+                where_clauses.push("inv_val <= ?".to_string());
+                params.push(Box::new(max_amount));
+            }
+        }
+
+        let where_clause = where_clauses.join(" AND ");
+
+        // Get total count
+        let count_sql = format!("SELECT COUNT(*) FROM sales_reports WHERE {where_clause}");
+        let mut count_stmt = self.conn.prepare(&count_sql)?;
+        let total_count: i32 = count_stmt.query_row(
+            rusqlite::params_from_iter(params.iter().map(|v| v.as_ref())),
+            |row| row.get(0),
+        )?;
+
+        // Get paginated data
+        let data_sql = format!(
+            "SELECT id, company_id, cust_code, cust_name, inv_date, RE, invno, 
+                    part_code, part_name, tariff, qty, bas_price, ass_val, 
+                    c_gst, s_gst, igst, amot, inv_val, igst_yes_no, percentage, created_at 
+             FROM sales_reports 
+             WHERE {where_clause} 
+             ORDER BY inv_date DESC, invno 
+             LIMIT ? OFFSET ?"
+        );
+
+        let mut stmt = self.conn.prepare(&data_sql)?;
+        let mut final_params = params;
+        final_params.push(Box::new(page_size));
+        final_params.push(Box::new(offset));
+
+        let rows = stmt.query_map(
+            rusqlite::params_from_iter(final_params.iter().map(|v| v.as_ref())),
+            |row| {
+                Ok(SalesReport {
+                    id: row.get(0)?,
+                    company_id: row.get(1)?,
+                    cust_code: row.get(2)?,
+                    cust_name: row.get(3)?,
+                    inv_date: row.get(4)?,
+                    RE: row.get(5)?,
+                    invno: row.get(6)?,
+                    part_code: row.get(7)?,
+                    part_name: row.get(8)?,
+                    tariff: row.get(9)?,
+                    qty: row.get(10)?,
+                    bas_price: row.get(11)?,
+                    ass_val: row.get(12)?,
+                    c_gst: row.get(13)?,
+                    s_gst: row.get(14)?,
+                    igst: row.get(15)?,
+                    amot: row.get(16)?,
+                    inv_val: row.get(17)?,
+                    igst_yes_no: row.get(18)?,
+                    percentage: row.get(19)?,
+                    created_at: row.get(20)?,
+                })
+            },
+        )?;
+
+        let mut reports = Vec::new();
+        for row in rows {
+            reports.push(row?);
+        }
+
+        Ok((reports, total_count))
+    }
+
+    pub fn search_sales_reports(
+        &self,
+        company_id: i32,
+        search_term: String,
+    ) -> Result<Vec<SalesReport>> {
+        let search_pattern = format!("%{search_term}%");
         let mut stmt = self.conn.prepare(
             "SELECT id, company_id, cust_code, cust_name, inv_date, RE, invno, 
                     part_code, part_name, tariff, qty, bas_price, ass_val, 
@@ -920,40 +1183,50 @@ impl DatabaseManager {
                  part_code LIKE ? OR 
                  part_name LIKE ?
              )
-             ORDER BY inv_date DESC, invno"
+             ORDER BY inv_date DESC, invno",
         )?;
-        
-        let rows = stmt.query_map(rusqlite::params![company_id, search_pattern, search_pattern, search_pattern, search_pattern, search_pattern], |row| {
-            Ok(SalesReport {
-                id: row.get(0)?,
-                company_id: row.get(1)?,
-                cust_code: row.get(2)?,
-                cust_name: row.get(3)?,
-                inv_date: row.get(4)?,
-                RE: row.get(5)?,
-                invno: row.get(6)?,
-                part_code: row.get(7)?,
-                part_name: row.get(8)?,
-                tariff: row.get(9)?,
-                qty: row.get(10)?,
-                bas_price: row.get(11)?,
-                ass_val: row.get(12)?,
-                c_gst: row.get(13)?,
-                s_gst: row.get(14)?,
-                igst: row.get(15)?,
-                amot: row.get(16)?,
-                inv_val: row.get(17)?,
-                igst_yes_no: row.get(18)?,
-                percentage: row.get(19)?,
-                created_at: row.get(20)?,
-            })
-        })?;
-        
+
+        let rows = stmt.query_map(
+            rusqlite::params![
+                company_id,
+                search_pattern,
+                search_pattern,
+                search_pattern,
+                search_pattern,
+                search_pattern
+            ],
+            |row| {
+                Ok(SalesReport {
+                    id: row.get(0)?,
+                    company_id: row.get(1)?,
+                    cust_code: row.get(2)?,
+                    cust_name: row.get(3)?,
+                    inv_date: row.get(4)?,
+                    RE: row.get(5)?,
+                    invno: row.get(6)?,
+                    part_code: row.get(7)?,
+                    part_name: row.get(8)?,
+                    tariff: row.get(9)?,
+                    qty: row.get(10)?,
+                    bas_price: row.get(11)?,
+                    ass_val: row.get(12)?,
+                    c_gst: row.get(13)?,
+                    s_gst: row.get(14)?,
+                    igst: row.get(15)?,
+                    amot: row.get(16)?,
+                    inv_val: row.get(17)?,
+                    igst_yes_no: row.get(18)?,
+                    percentage: row.get(19)?,
+                    created_at: row.get(20)?,
+                })
+            },
+        )?;
+
         let mut reports = Vec::new();
         for row in rows {
             reports.push(row?);
         }
-        
+
         Ok(reports)
     }
 
@@ -963,9 +1236,9 @@ impl DatabaseManager {
                 company_id, cust_code, cust_name, inv_date, RE, invno, 
                 part_code, part_name, tariff, qty, bas_price, ass_val, 
                 c_gst, s_gst, igst, amot, inv_val, igst_yes_no, percentage
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )?;
-        
+
         stmt.execute(rusqlite::params![
             report.company_id,
             report.cust_code,
@@ -987,14 +1260,14 @@ impl DatabaseManager {
             report.igst_yes_no,
             report.percentage,
         ])?;
-        
+
         Ok(self.conn.last_insert_rowid() as i32)
     }
 
     pub fn update_sales_report(&self, id: i32, report: UpdateSalesReportRequest) -> Result<bool> {
         let mut fields = Vec::new();
         let mut values: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
-        
+
         if let Some(cust_code) = report.cust_code {
             fields.push("cust_code = ?");
             values.push(Box::new(cust_code));
@@ -1007,9 +1280,9 @@ impl DatabaseManager {
             fields.push("inv_date = ?");
             values.push(Box::new(inv_date));
         }
-        if let Some(RE) = report.RE {
+        if let Some(re) = report.RE {
             fields.push("RE = ?");
-            values.push(Box::new(RE));
+            values.push(Box::new(re));
         }
         if let Some(invno) = report.invno {
             fields.push("invno = ?");
@@ -1067,38 +1340,63 @@ impl DatabaseManager {
             fields.push("percentage = ?");
             values.push(Box::new(percentage));
         }
-        
+
         if fields.is_empty() {
             return Ok(false);
         }
-        
+
         values.push(Box::new(id));
-        
-        let query = format!("UPDATE sales_reports SET {} WHERE id = ?", fields.join(", "));
+
+        let query = format!(
+            "UPDATE sales_reports SET {} WHERE id = ?",
+            fields.join(", ")
+        );
         let mut stmt = self.conn.prepare(&query)?;
-        
-        let changes = stmt.execute(rusqlite::params_from_iter(values.iter().map(|v| v.as_ref())))?;
+
+        let changes = stmt.execute(rusqlite::params_from_iter(
+            values.iter().map(|v| v.as_ref()),
+        ))?;
         Ok(changes > 0)
     }
 
     pub fn delete_sales_report(&self, id: i32) -> Result<bool> {
-        let mut stmt = self.conn.prepare("DELETE FROM sales_reports WHERE id = ?")?;
+        let mut stmt = self
+            .conn
+            .prepare("DELETE FROM sales_reports WHERE id = ?")?;
         let changes = stmt.execute([id])?;
         Ok(changes > 0)
     }
 
-    pub fn export_sales_reports_csv(&self, company_id: i32) -> Result<String, Box<dyn std::error::Error>> {
+    pub fn export_sales_reports_csv(
+        &self,
+        company_id: i32,
+    ) -> Result<String, Box<dyn std::error::Error>> {
         let reports = self.get_sales_reports_by_company(company_id)?;
-        
+
         let mut wtr = csv::Writer::from_writer(Cursor::new(Vec::new()));
-        
+
         // Write header
-        wtr.write_record(&[
-            "cust_code", "cust_name", "inv_date", "RE", "invno", "part_code", "part_name", 
-            "tariff", "qty", "bas_price", "ass_val", "c_gst", "s_gst", "igst", "amot", 
-            "inv_val", "igst_yes_no", "percentage"
+        wtr.write_record([
+            "cust_code",
+            "cust_name",
+            "inv_date",
+            "RE",
+            "invno",
+            "part_code",
+            "part_name",
+            "tariff",
+            "qty",
+            "bas_price",
+            "ass_val",
+            "c_gst",
+            "s_gst",
+            "igst",
+            "amot",
+            "inv_val",
+            "igst_yes_no",
+            "percentage",
         ])?;
-        
+
         // Write data
         for report in reports {
             wtr.write_record(&[
@@ -1122,40 +1420,47 @@ impl DatabaseManager {
                 report.percentage.to_string(),
             ])?;
         }
-        
+
         wtr.flush()?;
         let data = wtr.into_inner()?.into_inner();
         Ok(String::from_utf8(data)?)
     }
 
-    pub fn import_sales_reports_csv(&self, company_id: i32, csv_data: String) -> Result<i32, Box<dyn std::error::Error>> {
+    pub fn import_sales_reports_csv(
+        &self,
+        company_id: i32,
+        csv_data: String,
+    ) -> Result<i32, Box<dyn std::error::Error>> {
         let mut reader = csv::Reader::from_reader(csv_data.as_bytes());
         let mut imported_count = 0;
         let mut skipped_count = 0;
         let mut duplicate_count = 0;
-        
+
         // Read headers first
         let headers: Vec<String> = reader.headers()?.iter().map(|h| h.to_string()).collect();
-        println!("CSV Headers: {:?}", headers);
-        
+        println!("CSV Headers: {headers:?}");
+
         // Create header mapping for flexible column access
-        let header_map: std::collections::HashMap<String, usize> = headers.iter()
+        let header_map: std::collections::HashMap<String, usize> = headers
+            .iter()
             .enumerate()
             .map(|(i, h)| (h.to_lowercase().replace(" ", "_"), i))
             .collect();
-        
-        println!("Header mapping: {:?}", header_map);
-        
+
+        println!("Header mapping: {header_map:?}");
+
         for (row_num, result) in reader.records().enumerate() {
             let record = result?;
             let row_index = row_num + 2; // +2 because we're 0-indexed and skipped header row
-            
+
             println!("Processing row {} with {} columns", row_index, record.len());
-            
+
             // Helper function to get field value by header name and clean it
             let get_field = |field_names: &[&str]| -> String {
                 for field_name in field_names {
-                    if let Some(&col_index) = header_map.get(&field_name.to_lowercase().replace(" ", "_")) {
+                    if let Some(&col_index) =
+                        header_map.get(&field_name.to_lowercase().replace(" ", "_"))
+                    {
                         if col_index < record.len() {
                             let value = record.get(col_index).unwrap_or("").to_string();
                             // Remove surrounding quotes and trim whitespace
@@ -1165,53 +1470,80 @@ impl DatabaseManager {
                 }
                 String::new()
             };
-            
+
             // Helper function to validate and format dates
             let parse_date = |date_str: String| -> String {
-                if date_str.is_empty() { return String::new(); }
-                
+                if date_str.is_empty() {
+                    return String::new();
+                }
+
                 // Try different date formats
                 let formats = [
                     ("YYYY-MM-DD", r"^(\d{4})-(\d{1,2})-(\d{1,2})$"),
                     ("DD/MM/YYYY", r"^(\d{1,2})/(\d{1,2})/(\d{4})$"),
                     ("DD-MM-YYYY", r"^(\d{1,2})-(\d{1,2})-(\d{4})$"),
                 ];
-                
+
                 for (format_name, pattern) in &formats {
-                    if let Some(captures) = regex::Regex::new(pattern).unwrap().captures(&date_str) {
+                    if let Some(captures) = regex::Regex::new(pattern).unwrap().captures(&date_str)
+                    {
                         let (year, month, day) = if *format_name == "YYYY-MM-DD" {
-                            (captures.get(1).unwrap().as_str(), captures.get(2).unwrap().as_str(), captures.get(3).unwrap().as_str())
+                            (
+                                captures.get(1).unwrap().as_str(),
+                                captures.get(2).unwrap().as_str(),
+                                captures.get(3).unwrap().as_str(),
+                            )
                         } else {
-                            (captures.get(3).unwrap().as_str(), captures.get(2).unwrap().as_str(), captures.get(1).unwrap().as_str())
+                            (
+                                captures.get(3).unwrap().as_str(),
+                                captures.get(2).unwrap().as_str(),
+                                captures.get(1).unwrap().as_str(),
+                            )
                         };
-                        
+
                         // Validate date components
-                        if let (Ok(y), Ok(m), Ok(d)) = (year.parse::<i32>(), month.parse::<i32>(), day.parse::<i32>()) {
-                            if y >= 1900 && y <= 2100 && m >= 1 && m <= 12 && d >= 1 && d <= 31 {
-                                return format!("{:04}-{:02}-{:02}", y, m, d);
+                        if let (Ok(y), Ok(m), Ok(d)) = (
+                            year.parse::<i32>(),
+                            month.parse::<i32>(),
+                            day.parse::<i32>(),
+                        ) {
+                            if (1900..=2100).contains(&y) && (1..=12).contains(&m) && (1..=31).contains(&d) {
+                                return format!("{y:04}-{m:02}-{d:02}");
                             }
                         }
                     }
                 }
-                
-                println!("Warning: Invalid date format '{}' in row {}", date_str, row_index);
+
+                println!(
+                    "Warning: Invalid date format '{date_str}' in row {row_index}"
+                );
                 String::new()
             };
-            
+
             // Extract fields using flexible header mapping
             let cust_code = get_field(&["cust_code", "cust_cde", "customer_code"]);
             let cust_name = get_field(&["cust_name", "customer_name"]);
             let inv_date = parse_date(get_field(&["inv_date", "io_date", "invoice_date"]));
-            let RE = get_field(&["re", "region"]);
-            let invno = get_field(&["invno", "invoice_no", "invoice_number", "invoiceno", "invoice", "inv_no", "inv_number"]);
+            let re = get_field(&["re", "region"]);
+            let invno = get_field(&[
+                "invno",
+                "invoice_no",
+                "invoice_number",
+                "invoiceno",
+                "invoice",
+                "inv_no",
+                "inv_number",
+            ]);
             let part_code = get_field(&["part_code", "prod_cde", "product_code"]);
             let part_name = get_field(&["part_name", "prod_name_ko", "product_name"]);
             let tariff = get_field(&["tariff", "tariff_code"]);
-            
+
             // Helper function to parse numbers with currency symbol removal
             let parse_number = |value: String| -> f64 {
-                if value.is_empty() { return 0.0; }
-                
+                if value.is_empty() {
+                    return 0.0;
+                }
+
                 // Remove currency symbols, commas, and spaces
                 let cleaned = value
                     .replace("₹", "")
@@ -1221,72 +1553,111 @@ impl DatabaseManager {
                     .replace("¥", "")
                     .replace(",", "")
                     .replace(" ", "");
-                
+
                 // Handle negative numbers in parentheses (accounting format)
                 let final_value = if value.contains('(') && value.contains(')') {
                     format!("-{}", cleaned.replace("(", "").replace(")", ""))
                 } else {
                     cleaned
                 };
-                
+
                 final_value.parse().unwrap_or(0.0)
             };
-            
+
             // Parse numeric fields with currency symbol handling
             let qty: f64 = parse_number(get_field(&["qty", "io_qty", "quantity"]));
-            let bas_price: f64 = parse_number(get_field(&["bas_price", "rate_pre_unit", "base_price"]));
+            let bas_price: f64 =
+                parse_number(get_field(&["bas_price", "rate_pre_unit", "base_price"]));
             let ass_val: f64 = parse_number(get_field(&["ass_val", "assessable_value"]));
             let c_gst: f64 = parse_number(get_field(&["c_gst", "cgst_amt", "c gst"]));
             let s_gst: f64 = parse_number(get_field(&["s_gst", "sgst_amt", "s gst"]));
             let igst: f64 = parse_number(get_field(&["igst", "igst_amt"]));
-            let amot: f64 = parse_number(get_field(&["amot", "amortisation_cost", "total_amorization"]));
-            let inv_val: f64 = parse_number(get_field(&["inv_val", "total_inv_value", "invoice_total", "grand_total"]));
+            let amot: f64 = parse_number(get_field(&[
+                "amot",
+                "amortisation_cost",
+                "total_amorization",
+            ]));
+            let inv_val: f64 = parse_number(get_field(&[
+                "inv_val",
+                "total_inv_value",
+                "invoice_total",
+                "grand_total",
+            ]));
             let igst_yes_no = get_field(&["igst_yes_no", "igst_flag"]);
-            let percentage: f64 = parse_number(get_field(&["percentage", "cgst_rate", "sgst_rate", "igst_rate"]));
-            
+            let percentage: f64 = parse_number(get_field(&[
+                "percentage",
+                "cgst_rate",
+                "sgst_rate",
+                "igst_rate",
+            ]));
+
             // Validate required fields
             if invno.is_empty() {
-                println!("Skipping row {}: Missing invoice number", row_index);
+                println!("Skipping row {row_index}: Missing invoice number");
                 skipped_count += 1;
                 continue;
             }
-            
+
             if cust_code.is_empty() && cust_name.is_empty() {
-                println!("Skipping row {}: Missing customer information", row_index);
+                println!("Skipping row {row_index}: Missing customer information");
                 skipped_count += 1;
                 continue;
             }
-            
+
             if inv_date.is_empty() {
-                println!("Skipping row {}: Missing or invalid invoice date", row_index);
+                println!(
+                    "Skipping row {row_index}: Missing or invalid invoice date"
+                );
                 skipped_count += 1;
                 continue;
             }
-            
+
             // Check if report already exists
             let existing_count: i32 = self.conn.query_row(
                 "SELECT COUNT(*) FROM sales_reports WHERE company_id = ? AND invno = ?",
                 rusqlite::params![company_id, invno],
                 |row| row.get(0),
             )?;
-            
+
             if existing_count > 0 {
-                println!("Skipping row {}: Invoice {} already exists", row_index, invno);
+                println!(
+                    "Skipping row {row_index}: Invoice {invno} already exists"
+                );
                 duplicate_count += 1;
                 continue;
             }
-            
+
             // Insert new report
             let report = CreateSalesReportRequest {
                 company_id,
-                cust_code: if cust_code.is_empty() { cust_name.clone() } else { cust_code.clone() },
-                cust_name: if cust_name.is_empty() { cust_code.clone() } else { cust_name },
+                cust_code: if cust_code.is_empty() {
+                    cust_name.clone()
+                } else {
+                    cust_code.clone()
+                },
+                cust_name: if cust_name.is_empty() {
+                    cust_code.clone()
+                } else {
+                    cust_name
+                },
                 inv_date,
-                RE,
+                RE: re,
                 invno: invno.clone(),
-                part_code: if part_code.is_empty() { None } else { Some(part_code) },
-                part_name: if part_name.is_empty() { None } else { Some(part_name) },
-                tariff: if tariff.is_empty() { None } else { Some(tariff) },
+                part_code: if part_code.is_empty() {
+                    None
+                } else {
+                    Some(part_code)
+                },
+                part_name: if part_name.is_empty() {
+                    None
+                } else {
+                    Some(part_name)
+                },
+                tariff: if tariff.is_empty() {
+                    None
+                } else {
+                    Some(tariff)
+                },
                 qty,
                 bas_price,
                 ass_val,
@@ -1295,18 +1666,25 @@ impl DatabaseManager {
                 igst,
                 amot,
                 inv_val,
-                igst_yes_no: if igst_yes_no.is_empty() { "no".to_string() } else { igst_yes_no },
+                igst_yes_no: if igst_yes_no.is_empty() {
+                    "no".to_string()
+                } else {
+                    igst_yes_no
+                },
                 percentage,
             };
-            
+
             self.create_sales_report(report)?;
             imported_count += 1;
-            println!("Successfully imported invoice {} from row {}", invno, row_index);
+            println!(
+                "Successfully imported invoice {invno} from row {row_index}"
+            );
         }
-        
-        println!("Import completed: {} imported, {} skipped, {} duplicates", 
-                 imported_count, skipped_count, duplicate_count);
-        
+
+        println!(
+            "Import completed: {imported_count} imported, {skipped_count} skipped, {duplicate_count} duplicates"
+        );
+
         Ok(imported_count)
     }
 }

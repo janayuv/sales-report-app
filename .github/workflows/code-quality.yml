@@ -1,0 +1,123 @@
+name: Code Quality
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [ main, master, develop ]
+
+jobs:
+  code-quality:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: sale-report-app/package-lock.json
+
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+
+      - name: Install dependencies
+        working-directory: ./sale-report-app
+        run: npm ci
+
+      - name: Run ESLint with detailed output
+        working-directory: ./sale-report-app
+        run: |
+          npx eslint src --ext .ts,.tsx --format=json --output-file=eslint-report.json || true
+          npx eslint src --ext .ts,.tsx
+
+      - name: Run TypeScript strict check
+        working-directory: ./sale-report-app
+        run: npx tsc --noEmit --strict
+
+      - name: Run Prettier check
+        working-directory: ./sale-report-app
+        run: npx prettier --check src/ --config .prettierrc
+
+      - name: Check Rust formatting
+        working-directory: ./sale-report-app/src-tauri
+        run: cargo fmt -- --check
+
+      - name: Run Clippy with detailed output
+        working-directory: ./sale-report-app/src-tauri
+        run: |
+          cargo clippy -- -D warnings --message-format=json > clippy-report.json || true
+          cargo clippy -- -D warnings
+
+      - name: Upload ESLint report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eslint-report
+          path: sale-report-app/eslint-report.json
+          retention-days: 7
+
+      - name: Upload Clippy report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: clippy-report
+          path: sale-report-app/src-tauri/clippy-report.json
+          retention-days: 7
+
+  # Comment PR with quality metrics
+  pr-comment:
+    name: PR Quality Comment
+    runs-on: ubuntu-latest
+    needs: code-quality
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: sale-report-app/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./sale-report-app
+        run: npm ci
+
+      - name: Generate quality report
+        working-directory: ./sale-report-app
+        run: |
+          echo "## 📊 Code Quality Report" >> quality-report.md
+          echo "" >> quality-report.md
+          echo "### ESLint Results" >> quality-report.md
+          npx eslint src --ext .ts,.tsx --format=compact >> quality-report.md || true
+          echo "" >> quality-report.md
+          echo "### TypeScript Check" >> quality-report.md
+          npx tsc --noEmit --strict >> quality-report.md || true
+          echo "" >> quality-report.md
+          echo "### Prettier Check" >> quality-report.md
+          npx prettier --check src/ >> quality-report.md || true
+
+      - name: Comment PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('sale-report-app/quality-report.md', 'utf8');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: report
+            });

@@ -11,24 +11,24 @@ export interface TransformationConfig {
 export interface ColumnMapping {
   targetColumn: string;
   sourceColumns: string[];
-  transform?: (value: any, row: any) => any;
+  transform?: (value: unknown, row: Record<string, unknown>) => unknown;
   required?: boolean;
 }
 
 export interface TransformationResult {
   success: boolean;
-  data: any[];
+  data: Record<string, unknown>[];
   errors: TransformationError[];
   warnings: string[];
   mapping: Record<string, string>;
-  preview: any[];
+  preview: Record<string, unknown>[];
 }
 
 export interface TransformationError {
   row: number;
   column: string;
   message: string;
-  value: any;
+  value: unknown;
 }
 
 export interface YearMapConfig {
@@ -94,7 +94,7 @@ export const DEFAULT_COLUMN_MAPPINGS: ColumnMapping[] = [
       'date',
       'invoicedate',
     ],
-    transform: (value: any) => parseDate(value),
+    transform: (value: unknown) => parseDate(value),
     required: true,
   },
   {
@@ -126,7 +126,7 @@ export const DEFAULT_COLUMN_MAPPINGS: ColumnMapping[] = [
   {
     targetColumn: 'qty',
     sourceColumns: ['io_qty', 'qty', 'quantity', 'ioqty'],
-    transform: (value: any) => parseNumber(value),
+    transform: (value: unknown) => parseNumber(value),
     required: false,
   },
   {
@@ -138,7 +138,7 @@ export const DEFAULT_COLUMN_MAPPINGS: ColumnMapping[] = [
       'unit_price',
       'ratepreunit',
     ],
-    transform: (value: any) => parseNumber(value),
+    transform: (value: unknown) => parseNumber(value),
     required: false,
   },
   {
@@ -149,25 +149,25 @@ export const DEFAULT_COLUMN_MAPPINGS: ColumnMapping[] = [
       'assessable',
       'assessablevalue',
     ],
-    transform: (value: any) => parseNumber(value),
+    transform: (value: unknown) => parseNumber(value),
     required: false,
   },
   {
     targetColumn: 'c_gst',
     sourceColumns: ['cgst_amt', 'c_gst', 'cgst', 'cgstamt'],
-    transform: (value: any) => parseNumber(value),
+    transform: (value: unknown) => parseNumber(value),
     required: false,
   },
   {
     targetColumn: 's_gst',
     sourceColumns: ['sgst_amt', 's_gst', 'sgst', 'sgstamt'],
-    transform: (value: any) => parseNumber(value),
+    transform: (value: unknown) => parseNumber(value),
     required: false,
   },
   {
     targetColumn: 'igst',
     sourceColumns: ['igst_amt', 'igst', 'igstamt'],
-    transform: (value: any) => parseNumber(value),
+    transform: (value: unknown) => parseNumber(value),
     required: false,
   },
   {
@@ -179,7 +179,7 @@ export const DEFAULT_COLUMN_MAPPINGS: ColumnMapping[] = [
       'amortisationcost',
       'Total_Amorization',
     ],
-    transform: (value: any) => parseNumber(value),
+    transform: (value: unknown) => parseNumber(value),
     required: false,
   },
   {
@@ -193,7 +193,7 @@ export const DEFAULT_COLUMN_MAPPINGS: ColumnMapping[] = [
       'grandtotal',
       'Total_Inv_Value',
     ],
-    transform: (value: any) => parseNumber(value),
+    transform: (value: unknown) => parseNumber(value),
     required: false,
   },
 ];
@@ -222,7 +222,7 @@ export function normalizeHeader(header: string): string {
  * Parse date string to ISO format (YYYY-MM-DD)
  * Handles DD/MM/YYYY format as specified in your requirements
  */
-export function parseDate(dateStr: any): string | null {
+export function parseDate(dateStr: unknown): string | null {
   if (!dateStr) return null;
 
   const str = String(dateStr).trim();
@@ -280,7 +280,7 @@ export function parseDate(dateStr: any): string | null {
  * Parse number, removing commas and handling various formats
  * Enhanced to handle Indian number formats and currency symbols
  */
-export function parseNumber(value: any): number | null {
+export function parseNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === '') return null;
 
   const str = String(value).trim();
@@ -332,7 +332,7 @@ export function generateRECode(
 /**
  * Calculate IGST flag and percentage according to your requirements
  */
-export function calculateIGSTFlags(row: any): {
+export function calculateIGSTFlags(row: Record<string, unknown>): {
   igst_yes_no: string;
   percentage: number | null;
 } {
@@ -406,7 +406,10 @@ export function findBestMatch(
 /**
  * Validate a single row of transformed data
  */
-export function validateRow(row: any, rowIndex: number): TransformationError[] {
+export function validateRow(
+  row: Record<string, unknown>,
+  rowIndex: number
+): TransformationError[] {
   const errors: TransformationError[] = [];
 
   // Required field validation - check source fields

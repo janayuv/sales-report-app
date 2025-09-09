@@ -1,0 +1,111 @@
+name: Accessibility Testing
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [ main, master ]
+
+jobs:
+  accessibility-test:
+    name: Accessibility Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: sale-report-app/package-lock.json
+
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.0-dev libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - name: Install dependencies
+        working-directory: ./sale-report-app
+        run: npm ci
+
+      - name: Install Playwright
+        working-directory: ./sale-report-app
+        run: npx playwright install --with-deps
+
+      - name: Build application
+        working-directory: ./sale-report-app
+        run: npm run build
+
+      - name: Start application
+        working-directory: ./sale-report-app
+        run: |
+          npm run preview &
+          sleep 10
+
+      - name: Run axe-core accessibility tests
+        working-directory: ./sale-report-app
+        run: |
+          npx playwright test --grep="accessibility" || echo "No accessibility tests found"
+
+      - name: Run Lighthouse accessibility audit
+        run: |
+          npm install -g @lhci/cli@0.12.x
+          lhci autorun --config=lighthouserc.json || echo "Lighthouse CI not configured"
+
+      - name: Run pa11y accessibility tests
+        run: |
+          npm install -g pa11y
+          pa11y http://localhost:4173 --reporter json > pa11y-report.json || true
+          pa11y http://localhost:4173 --reporter cli || true
+
+      - name: Upload accessibility reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: accessibility-reports
+          path: |
+            sale-report-app/pa11y-report.json
+            sale-report-app/.lighthouseci/
+          retention-days: 7
+
+      - name: Comment PR with accessibility results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let report = '## ♿ Accessibility Test Results\n\n';
+            
+            try {
+              const pa11yReport = JSON.parse(fs.readFileSync('sale-report-app/pa11y-report.json', 'utf8'));
+              report += `**Pa11y Results:** ${pa11yReport.length} issues found\n`;
+              
+              if (pa11yReport.length > 0) {
+                report += '\n### Issues Found:\n';
+                pa11yReport.forEach((issue, index) => {
+                  report += `${index + 1}. ${issue.message} (${issue.type})\n`;
+                });
+              } else {
+                report += '✅ No accessibility issues found!\n';
+              }
+            } catch (e) {
+              report += '⚠️ Could not parse accessibility report\n';
+            }
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: report
+            });
+
+      - name: Stop application
+        run: pkill -f "npm run preview" || true

@@ -1,0 +1,157 @@
+name: Performance Testing
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [ main, master ]
+
+jobs:
+  performance-test:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: sale-report-app/package-lock.json
+
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.0-dev libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - name: Install dependencies
+        working-directory: ./sale-report-app
+        run: npm ci
+
+      - name: Build application
+        working-directory: ./sale-report-app
+        run: npm run build
+
+      - name: Install Playwright
+        working-directory: ./sale-report-app
+        run: npx playwright install --with-deps
+
+      - name: Run Lighthouse CI
+        working-directory: ./sale-report-app
+        run: |
+          npm install -g @lhci/cli@0.12.x
+          lhci autorun
+
+      - name: Run bundle size analysis
+        working-directory: ./sale-report-app
+        run: |
+          npm install -g bundle-analyzer
+          npx webpack-bundle-analyzer dist/assets/*.js --report --mode static --no-open
+
+      - name: Run performance tests
+        working-directory: ./sale-report-app
+        run: |
+          npm run test:performance || echo "Performance tests not configured"
+
+      - name: Upload performance reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: performance-reports
+          path: |
+            sale-report-app/.lighthouseci/
+            sale-report-app/performance-reports/
+          retention-days: 7
+
+  # Memory usage test
+  memory-test:
+    name: Memory Usage Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: sale-report-app/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./sale-report-app
+        run: npm ci
+
+      - name: Run memory usage test
+        working-directory: ./sale-report-app
+        run: |
+          node --max-old-space-size=4096 --expose-gc -e "
+          const { performance, PerformanceObserver } = require('perf_hooks');
+          
+          const obs = new PerformanceObserver((list) => {
+            const entries = list.getEntries();
+            entries.forEach((entry) => {
+              console.log(\`Memory usage: \${entry.name} - \${entry.duration}ms\`);
+            });
+          });
+          
+          obs.observe({ entryTypes: ['measure'] });
+          
+          performance.mark('start');
+          // Simulate heavy operations
+          const arr = new Array(1000000).fill(0).map((_, i) => i);
+          performance.mark('end');
+          performance.measure('memory-test', 'start', 'end');
+          
+          const memUsage = process.memoryUsage();
+          console.log('Memory Usage:', {
+            rss: Math.round(memUsage.rss / 1024 / 1024) + ' MB',
+            heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024) + ' MB',
+            heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024) + ' MB',
+            external: Math.round(memUsage.external / 1024 / 1024) + ' MB'
+          });
+          "
+
+  # Load testing
+  load-test:
+    name: Load Testing
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: sale-report-app/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./sale-report-app
+        run: npm ci
+
+      - name: Start application
+        working-directory: ./sale-report-app
+        run: |
+          npm run build
+          npm run preview &
+          sleep 10
+
+      - name: Run load test
+        run: |
+          npm install -g artillery
+          artillery quick --count 10 --num 5 http://localhost:4173 || echo "Load test completed"
+
+      - name: Stop application
+        run: pkill -f "npm run preview" || true

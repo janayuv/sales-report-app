@@ -40,7 +40,7 @@ export const CustomersList: React.FC<CustomersListProps> = ({
   const [showTransformationDialog, setShowTransformationDialog] =
     useState(false);
   const [transformationData, setTransformationData] = useState<{
-    inputData: any[];
+    inputData: Record<string, unknown>[];
     sourceHeaders: string[];
   } | null>(null);
 
@@ -199,10 +199,12 @@ export const CustomersList: React.FC<CustomersListProps> = ({
         return;
       }
 
-      const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+      const headers = lines[0]
+        .split(',')
+        .map(h => h.trim().replace(/^"|"$/g, ''));
       const data = lines.slice(1).map(line => {
         const values = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-        const row: any = {};
+        const row: Record<string, string> = {};
         headers.forEach((header, index) => {
           row[header] = values[index] || '';
         });
@@ -263,7 +265,7 @@ export const CustomersList: React.FC<CustomersListProps> = ({
     }
   };
 
-  const generateCSVForImport = (data: any[]): string => {
+  const generateCSVForImport = (data: Record<string, unknown>[]): string => {
     const headers = ['Customer Name', 'Tally Name', 'GST No', 'Category'];
     const csvRows = [
       headers.join(','),

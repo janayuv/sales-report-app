@@ -326,6 +326,32 @@ export const CompanyForm: React.FC<CompanyFormProps> = ({
         <div
           className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize"
           onMouseDown={handleResizeStart}
+          role="button"
+          tabIndex={0}
+          aria-label="Resize dialog"
+          onKeyDown={e => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              // For keyboard activation, we'll just trigger a simple resize
+              // Create a minimal mouse event for the handler
+              const syntheticEvent = {
+                ...e,
+                button: 0,
+                buttons: 1,
+                clientX: 0,
+                clientY: 0,
+                screenX: 0,
+                screenY: 0,
+                pageX: 0,
+                pageY: 0,
+                movementX: 0,
+                movementY: 0,
+                relatedTarget: null,
+                nativeEvent: e.nativeEvent,
+              } as unknown as React.MouseEvent<HTMLDivElement>;
+              handleResizeStart(syntheticEvent);
+            }
+          }}
         >
           <div className="absolute bottom-1 right-1 w-2 h-2 border-r-2 border-b-2 border-gray-400"></div>
         </div>

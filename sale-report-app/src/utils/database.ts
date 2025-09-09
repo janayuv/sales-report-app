@@ -51,6 +51,23 @@ export interface SalesReport {
   created_at: string;
 }
 
+export interface SalesReportFilters {
+  date_from?: string;
+  date_to?: string;
+  customer?: string;
+  invoice?: string;
+  min_amount?: number;
+  max_amount?: number;
+}
+
+export interface PaginatedResult<T> {
+  data: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
 export interface UploadedReport {
   id: number;
   company_id: number;
@@ -246,7 +263,7 @@ class DatabaseManager {
   // Clear all data from database
   async clearAllData(): Promise<void> {
     try {
-      if ((window as any).__TAURI__) {
+      if ((window as unknown as { __TAURI__?: unknown }).__TAURI__) {
         console.log('Clearing all database data...');
         await invoke('clear_all_data');
         console.log('All data cleared from database successfully');
@@ -279,20 +296,26 @@ class DatabaseManager {
 
       // Check if report has old field names with spaces
       if (Object.prototype.hasOwnProperty.call(report, 'c gst')) {
-        report.c_gst = (report as any)['c gst'];
-        delete (report as any)['c gst'];
+        report.c_gst = (report as unknown as Record<string, unknown>)[
+          'c gst'
+        ] as number;
+        delete (report as unknown as Record<string, unknown>)['c gst'];
         needsMigration = true;
       }
 
       if (Object.prototype.hasOwnProperty.call(report, 's gst')) {
-        report.s_gst = (report as any)['s gst'];
-        delete (report as any)['s gst'];
+        report.s_gst = (report as unknown as Record<string, unknown>)[
+          's gst'
+        ] as number;
+        delete (report as unknown as Record<string, unknown>)['s gst'];
         needsMigration = true;
       }
 
       if (Object.prototype.hasOwnProperty.call(report, 'igst yes/no')) {
-        report.igst_yes_no = (report as any)['igst yes/no'];
-        delete (report as any)['igst yes/no'];
+        report.igst_yes_no = (report as unknown as Record<string, unknown>)[
+          'igst yes/no'
+        ] as string;
+        delete (report as unknown as Record<string, unknown>)['igst yes/no'];
         needsMigration = true;
       }
 
@@ -329,7 +352,10 @@ class DatabaseManager {
   async getCompanies(): Promise<Company[]> {
     try {
       // Check if we're running in Tauri
-      if (typeof window !== 'undefined' && (window as any).__TAURI__) {
+      if (
+        typeof window !== 'undefined' &&
+        (window as unknown as { __TAURI__?: unknown }).__TAURI__
+      ) {
         return await invoke('get_companies');
       } else {
         // Fallback for development mode - return demo companies
@@ -348,7 +374,10 @@ class DatabaseManager {
   ): Promise<boolean> {
     try {
       // Check if we're running in Tauri
-      if (typeof window !== 'undefined' && (window as any).__TAURI__) {
+      if (
+        typeof window !== 'undefined' &&
+        (window as unknown as { __TAURI__?: unknown }).__TAURI__
+      ) {
         return await invoke('update_company', { id, company });
       } else {
         // Fallback for development mode - actually update the in-memory companies
@@ -526,7 +555,10 @@ class DatabaseManager {
   async getSalesReportsByCompany(companyId: number): Promise<SalesReport[]> {
     try {
       // Check if we're running in Tauri
-      if (typeof window !== 'undefined' && (window as any).__TAURI__) {
+      if (
+        typeof window !== 'undefined' &&
+        (window as unknown as { __TAURI__?: unknown }).__TAURI__
+      ) {
         return await invoke('get_sales_reports_by_company', { companyId });
       } else {
         // Fallback for development mode - return stored data for this company
@@ -543,6 +575,111 @@ class DatabaseManager {
       }
     } catch (error) {
       console.error('Failed to get sales reports by company:', error);
+      throw error;
+    }
+  }
+
+  async getSalesReportsPaginated(
+    companyId: number,
+    page: number = 1,
+    pageSize: number = 50,
+    filters?: SalesReportFilters
+  ): Promise<PaginatedResult<SalesReport>> {
+    try {
+      // Check if we're running in Tauri
+      if (
+        typeof window !== 'undefined' &&
+        (window as unknown as { __TAURI__?: unknown }).__TAURI__
+      ) {
+        const result = (await invoke('get_sales_reports_paginated', {
+          companyId,
+          page,
+          pageSize,
+          filters: filters || null,
+        })) as [SalesReport[], number];
+
+        const [data, total] = result;
+        const totalPages = Math.ceil(total / pageSize);
+
+        return {
+          data,
+          total,
+          page,
+          pageSize,
+          totalPages,
+        };
+      } else {
+        // Fallback for development mode - simulate pagination
+        console.warn(
+          'Running in development mode - simulating paginated sales reports'
+        );
+
+        let companyReports = this.devSalesReports.filter(
+          report => report.company_id === companyId
+        );
+
+        // Apply filters
+        if (filters) {
+          if (filters.date_from) {
+            companyReports = companyReports.filter(
+              report =>
+                new Date(report.inv_date) >= new Date(filters.date_from!)
+            );
+          }
+          if (filters.date_to) {
+            companyReports = companyReports.filter(
+              report => new Date(report.inv_date) <= new Date(filters.date_to!)
+            );
+          }
+          if (filters.customer) {
+            const customerLower = filters.customer.toLowerCase();
+            companyReports = companyReports.filter(
+              report =>
+                report.cust_name?.toLowerCase().includes(customerLower) ||
+                report.cust_code?.toLowerCase().includes(customerLower)
+            );
+          }
+          if (filters.invoice) {
+            companyReports = companyReports.filter(report =>
+              report.invno
+                ?.toLowerCase()
+                .includes(filters.invoice!.toLowerCase())
+            );
+          }
+          if (filters.min_amount !== undefined) {
+            companyReports = companyReports.filter(
+              report => (report.inv_val || 0) >= filters.min_amount!
+            );
+          }
+          if (filters.max_amount !== undefined) {
+            companyReports = companyReports.filter(
+              report => (report.inv_val || 0) <= filters.max_amount!
+            );
+          }
+        }
+
+        // Sort by date descending
+        companyReports.sort(
+          (a, b) =>
+            new Date(b.inv_date).getTime() - new Date(a.inv_date).getTime()
+        );
+
+        const total = companyReports.length;
+        const totalPages = Math.ceil(total / pageSize);
+        const startIndex = (page - 1) * pageSize;
+        const endIndex = startIndex + pageSize;
+        const data = companyReports.slice(startIndex, endIndex);
+
+        return {
+          data,
+          total,
+          page,
+          pageSize,
+          totalPages,
+        };
+      }
+    } catch (error) {
+      console.error('Failed to get paginated sales reports:', error);
       throw error;
     }
   }
@@ -615,7 +752,10 @@ class DatabaseManager {
   ): Promise<number> {
     try {
       // Check if we're running in Tauri
-      if (typeof window !== 'undefined' && (window as any).__TAURI__) {
+      if (
+        typeof window !== 'undefined' &&
+        (window as unknown as { __TAURI__?: unknown }).__TAURI__
+      ) {
         return await invoke('import_sales_reports_csv', { companyId, csvData });
       } else {
         // Fallback for development mode - actually import and store data
@@ -639,14 +779,16 @@ class DatabaseManager {
         };
 
         // Parse multi-line format data
-        const parseMultiLineData = (data: string): { headers: string[], records: string[][] } => {
+        const parseMultiLineData = (
+          data: string
+        ): { headers: string[]; records: string[][] } => {
           const lines = data.split('\n').filter(line => line.trim());
           const records: string[][] = [];
           let currentRecord: string[] = [];
-          
+
           for (const line of lines) {
             const trimmedLine = line.trim();
-            
+
             // If line is empty, end current record
             if (!trimmedLine) {
               if (currentRecord.length > 0) {
@@ -655,29 +797,45 @@ class DatabaseManager {
               }
               continue;
             }
-            
+
             // Clean the line: remove currency symbols and normalize
             const cleanedLine = trimmedLine
               .replace(/[₹$€£¥]/g, '')
               .replace(/,/g, '')
               .trim();
-            
+
             currentRecord.push(cleanedLine);
           }
-          
+
           // Add the last record if it exists
           if (currentRecord.length > 0) {
             records.push(currentRecord);
           }
-          
+
           // Define headers based on the multi-line format structure
           const headers = [
-            'cust_name', 'cust_code', 'invno', 'RE', 'inv_date',
-            'val1', 'val2', 'val3', 'val4', 'val5',
-            'tariff', 'part_name', 'bas_price', 'RE2', 'inv_date2',
-            'val6', 'val7', 'val8', 'val9', 'val10'
+            'cust_name',
+            'cust_code',
+            'invno',
+            'RE',
+            'inv_date',
+            'val1',
+            'val2',
+            'val3',
+            'val4',
+            'val5',
+            'tariff',
+            'part_name',
+            'bas_price',
+            'RE2',
+            'inv_date2',
+            'val6',
+            'val7',
+            'val8',
+            'val9',
+            'val10',
           ];
-          
+
           return { headers, records };
         };
 
@@ -686,15 +844,16 @@ class DatabaseManager {
           const result: string[] = [];
           let current = '';
           let inQuotes = false;
-          
+
           for (let i = 0; i < row.length; i++) {
             const char = row[i];
-            
+
             if (char === '"') {
               inQuotes = !inQuotes;
             } else if (char === ',' && !inQuotes) {
               // Clean the field: remove quotes, trim, and replace line breaks with spaces
-              const cleaned = current.trim()
+              const cleaned = current
+                .trim()
                 .replace(/^"|"$/g, '')
                 .replace(/\r?\n/g, ' ')
                 .replace(/\s+/g, ' ')
@@ -705,15 +864,16 @@ class DatabaseManager {
               current += char;
             }
           }
-          
+
           // Handle the last field
-          const cleaned = current.trim()
+          const cleaned = current
+            .trim()
             .replace(/^"|"$/g, '')
             .replace(/\r?\n/g, ' ')
             .replace(/\s+/g, ' ')
             .trim();
           result.push(cleaned);
-          
+
           return result;
         };
 
@@ -739,7 +899,9 @@ class DatabaseManager {
         const newReports: SalesReport[] = dataRows
           .map((row, index) => {
             const values = row;
-            const report: any = { company_id: companyId };
+            const report: Partial<SalesReport> & { company_id: number } = {
+              company_id: companyId,
+            };
 
             // Map CSV columns to SalesReport fields
             headers.forEach((header, colIndex) => {
@@ -770,10 +932,16 @@ class DatabaseManager {
                   // Validate and format date
                   if (cleanValue) {
                     const date = new Date(cleanValue);
-                    if (!isNaN(date.getTime()) && date.getFullYear() >= 1900 && date.getFullYear() <= 2100) {
+                    if (
+                      !isNaN(date.getTime()) &&
+                      date.getFullYear() >= 1900 &&
+                      date.getFullYear() <= 2100
+                    ) {
                       report.inv_date = date.toISOString().split('T')[0];
                     } else {
-                      console.warn(`Row ${index + 2}: Invalid date "${cleanValue}"`);
+                      console.warn(
+                        `Row ${index + 2}: Invalid date "${cleanValue}"`
+                      );
                       report.inv_date = '';
                     }
                   } else {
@@ -847,11 +1015,15 @@ class DatabaseManager {
             });
 
             // Debug logging for invoice number
-            console.log(`Row ${index + 2}: Invoice number extracted: "${report.invno}"`);
-            
+            console.log(
+              `Row ${index + 2}: Invoice number extracted: "${report.invno}"`
+            );
+
             // Validate required fields
             if (!report.invno) {
-              console.warn(`Row ${index + 2}: Missing invoice number - Headers: ${headers.join(', ')}`);
+              console.warn(
+                `Row ${index + 2}: Missing invoice number - Headers: ${headers.join(', ')}`
+              );
               console.warn(`Row ${index + 2}: Values: ${values.join(', ')}`);
               return null;
             }

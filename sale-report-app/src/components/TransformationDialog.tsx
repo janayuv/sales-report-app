@@ -18,7 +18,7 @@ import { downloadExcelFile } from '../utils/fileUtils';
 interface TransformationDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  inputData: any[];
+  inputData: Record<string, unknown>[];
   sourceHeaders: string[];
   onTransformComplete: (result: TransformationResult) => void;
 }
@@ -46,15 +46,14 @@ export const TransformationDialog: React.FC<TransformationDialogProps> = ({
   const [isTransforming, setIsTransforming] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<string>('indian_export');
 
-  // Initialize column mappings
-  useEffect(() => {
-    if (isOpen && sourceHeaders.length > 0) {
-      initializeColumnMappings();
-      setYearMap(engine.getConfig().yearMap);
-    }
-  }, [isOpen, sourceHeaders, engine]);
-
   const initializeColumnMappings = useCallback(() => {
+    if (!sourceHeaders || sourceHeaders.length === 0) {
+      console.warn(
+        'No source headers available for column mapping initialization'
+      );
+      return;
+    }
+
     const config = engine.getConfig();
     const mappings: ColumnMappingRow[] = [];
 
@@ -74,6 +73,14 @@ export const TransformationDialog: React.FC<TransformationDialogProps> = ({
 
     setColumnMappings(mappings);
   }, [sourceHeaders, engine]);
+
+  // Initialize column mappings
+  useEffect(() => {
+    if (isOpen && sourceHeaders && sourceHeaders.length > 0) {
+      initializeColumnMappings();
+      setYearMap(engine.getConfig().yearMap);
+    }
+  }, [isOpen, sourceHeaders, engine, initializeColumnMappings]);
 
   const findBestMatch = (
     _targetColumn: string,
@@ -156,6 +163,11 @@ export const TransformationDialog: React.FC<TransformationDialogProps> = ({
       engine.updateColumnMappings(updatedMappings);
 
       // Perform transformation
+      if (!sourceHeaders || sourceHeaders.length === 0) {
+        showToast.error('No source headers available for transformation');
+        return;
+      }
+
       const result = engine.transformData(inputData, sourceHeaders);
       setTransformationResult(result);
       setShowPreview(true);

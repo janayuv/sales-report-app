@@ -34,19 +34,19 @@ export class TransformationEngine {
    * Transform CSV data to standard format
    */
   transformData(
-    inputData: any[],
+    inputData: Record<string, unknown>[],
     sourceHeaders: string[]
   ): TransformationResult {
     const errors: TransformationError[] = [];
     const warnings: string[] = [];
-    const transformedData: any[] = [];
+    const transformedData: Record<string, unknown>[] = [];
 
     // Step 1: Detect column mappings
     const detectedMappings = this.detectColumnMappings(sourceHeaders);
 
     // Step 2: Transform each row
     inputData.forEach((row, rowIndex) => {
-      const transformedRow: any = {};
+      const transformedRow: Record<string, unknown> = {};
       const rowErrors: TransformationError[] = [];
 
       // Initialize all output columns with default values
@@ -183,7 +183,9 @@ export class TransformationEngine {
   /**
    * Export-level invoice splitting: Group by invoice_no and GST rate, split with suffixes
    */
-  private groupByInvoiceAndSum(transformedRows: any[]): any[] {
+  private groupByInvoiceAndSum(
+    transformedRows: Record<string, unknown>[]
+  ): Record<string, unknown>[] {
     console.log(
       'Starting export-level invoice splitting with',
       transformedRows.length,
@@ -191,11 +193,11 @@ export class TransformationEngine {
     );
 
     // Step 1: Group rows by invoice_no
-    const invoiceGroups = new Map<string, any[]>();
-    const skippedRows: any[] = [];
+    const invoiceGroups = new Map<string, Record<string, unknown>[]>();
+    const skippedRows: Record<string, unknown>[] = [];
 
     transformedRows.forEach((row, index) => {
-      const invoiceNo = row.invno;
+      const invoiceNo = String(row.invno || '');
       if (!invoiceNo || invoiceNo.trim() === '') {
         console.log(
           `Skipping row ${index + 1}: no invoice number (invno: "${invoiceNo}")`
@@ -222,7 +224,7 @@ export class TransformationEngine {
     console.log('Invoice numbers found:', invoiceNumbers);
 
     // Step 2: Process each invoice group
-    const processedRows: any[] = [];
+    const processedRows: Record<string, unknown>[] = [];
     const invoiceMappingLog = new Map<string, string[]>(); // original_invoice_no → [generated_invoice_nos]
 
     for (const [originalInvoiceNo, rows] of invoiceGroups) {
@@ -340,8 +342,10 @@ export class TransformationEngine {
   /**
    * Group rows by GST rate within an invoice
    */
-  private groupRowsByGstRate(rows: any[]): Map<number, any[]> {
-    const gstGroups = new Map<number, any[]>();
+  private groupRowsByGstRate(
+    rows: Record<string, unknown>[]
+  ): Map<number, Record<string, unknown>[]> {
+    const gstGroups = new Map<number, Record<string, unknown>[]>();
 
     rows.forEach(row => {
       // Calculate GST rate from tax amounts
@@ -372,7 +376,7 @@ export class TransformationEngine {
   private generateUniqueInvoiceNo(
     originalInvoiceNo: string,
     groupIndex: number,
-    existingRows: any[]
+    existingRows: Record<string, unknown>[]
   ): string {
     const suffixes = [
       'A',
@@ -420,7 +424,10 @@ export class TransformationEngine {
   /**
    * Sum multiple rows into a single invoice row
    */
-  private sumRowsForInvoice(rows: any[], invoiceNo: string): any {
+  private sumRowsForInvoice(
+    rows: Record<string, unknown>[],
+    invoiceNo: string
+  ): Record<string, unknown> {
     if (rows.length === 0) {
       throw new Error('Cannot sum empty rows array');
     }
@@ -510,8 +517,8 @@ export class TransformationEngine {
    * Calculate derived fields (RE, IGST flags, etc.)
    */
   private calculateDerivedFields(
-    transformedRow: any,
-    _originalRow: any,
+    transformedRow: Record<string, unknown>,
+    _originalRow: Record<string, unknown>,
     rowIndex: number,
     errors: TransformationError[]
   ): void {
@@ -519,7 +526,7 @@ export class TransformationEngine {
       // Calculate RE code
       if (transformedRow.inv_date) {
         const reCode = generateRECode(
-          transformedRow.inv_date,
+          String(transformedRow.inv_date),
           this.config.yearMap
         );
         transformedRow.RE = reCode;
@@ -551,12 +558,12 @@ export class TransformationEngine {
   /**
    * Check for missing year codes in the data
    */
-  private checkMissingYearCodes(data: any[]): number[] {
+  private checkMissingYearCodes(data: Record<string, unknown>[]): number[] {
     const years = new Set<number>();
 
     data.forEach(row => {
       if (row.inv_date) {
-        const date = new Date(row.inv_date);
+        const date = new Date(String(row.inv_date));
         if (!isNaN(date.getTime())) {
           years.add(date.getFullYear());
         }
@@ -629,7 +636,7 @@ export class TransformationEngine {
   /**
    * Export transformed data to CSV with exact header format
    */
-  exportToCSV(data: any[]): string {
+  exportToCSV(data: Record<string, unknown>[]): string {
     if (data.length === 0) return '';
 
     // Use the exact header format specified
@@ -679,14 +686,14 @@ export class TransformationEngine {
   /**
    * Export transformed data to Excel format
    */
-  exportToExcel(data: any[]): any[] {
+  exportToExcel(data: Record<string, unknown>[]): Record<string, unknown>[] {
     if (data.length === 0) return [];
 
     // Use the exact header format specified
     const headers = OUTPUT_COLUMNS;
 
     return data.map(row => {
-      const excelRow: any = {};
+      const excelRow: Record<string, unknown> = {};
       headers.forEach(header => {
         // Ensure no blank cells - use appropriate defaults
         if (row[header] === null || row[header] === undefined) {

@@ -3,6 +3,7 @@ import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { Footer } from './Footer';
 import type { Page } from '../types/navigation';
+import { SidebarProvider } from './ui/sidebar';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -42,30 +43,32 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <Header onSidebarToggle={handleSidebarToggle} />
+    <SidebarProvider defaultOpen={false}>
+      <div className="min-h-screen bg-background flex flex-col">
+        {/* Header */}
+        <Header onSidebarToggle={handleSidebarToggle} />
 
-      {/* Main content area with sidebar */}
-      <div className="flex flex-1">
-        {/* Sidebar */}
-        <Sidebar
-          isOpen={sidebarOpen}
-          onClose={handleSidebarClose}
-          currentPage={currentPage}
-          onPageChange={onPageChange}
-        />
+        {/* Main content area with sidebar */}
+        <div className="flex flex-1">
+          {/* Sidebar */}
+          <Sidebar
+            isOpen={sidebarOpen}
+            onClose={handleSidebarClose}
+            currentPage={currentPage}
+            onPageChange={onPageChange}
+          />
 
-        {/* Main content */}
-        <main className="flex-1">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-            {children}
-          </div>
-        </main>
+          {/* Main content */}
+          <main className="flex-1">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+              {children}
+            </div>
+          </main>
+        </div>
+
+        {/* Footer */}
+        <Footer />
       </div>
-
-      {/* Footer */}
-      <Footer />
-    </div>
+    </SidebarProvider>
   );
 };

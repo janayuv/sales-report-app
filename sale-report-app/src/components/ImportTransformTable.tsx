@@ -25,7 +25,7 @@ export const ImportTransformTable: React.FC<ImportTransformTableProps> = ({
   const { selectedCompany } = useCompanyContext();
 
   // State for import transformation
-  const [importData, setImportData] = useState<any[]>([]);
+  const [importData, setImportData] = useState<Record<string, unknown>[]>([]);
   const [importHeaders, setImportHeaders] = useState<string[]>([]);
   const [transformationResult, setTransformationResult] =
     useState<TransformationResult | null>(null);
@@ -172,7 +172,7 @@ export const ImportTransformTable: React.FC<ImportTransformTableProps> = ({
     }
   };
 
-  const generateCSVForImport = (data: any[]): string => {
+  const generateCSVForImport = (data: Record<string, unknown>[]): string => {
     // Use the exact header format from OUTPUT_COLUMNS
     const headers = [
       'cust_code',

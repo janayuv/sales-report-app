@@ -3,7 +3,7 @@
  * Allows transformation of already imported data with date filtering
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useCompanyContext } from '../contexts/CompanyContext';
 import { dbManager } from '../utils/database';
 import { showToast } from './Toast';
@@ -20,7 +20,11 @@ import {
   previewTransformation,
   getDateRangeSummary,
 } from '../utils/databaseTransformation';
-import type { TransformationResult } from '../utils/transformation';
+import type {
+  TransformationResult,
+  TransformationError,
+} from '../utils/transformation';
+import type { SalesReport } from '../utils/database';
 import { downloadExcelFile } from '../utils/fileUtils';
 
 interface TransformExistingDataProps {
@@ -33,7 +37,7 @@ export const TransformExistingData: React.FC<TransformExistingDataProps> = ({
   const { selectedCompany } = useCompanyContext();
 
   // State management
-  const [reports, setReports] = useState<any[]>([]);
+  const [reports, setReports] = useState<SalesReport[]>([]);
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
@@ -59,43 +63,7 @@ export const TransformExistingData: React.FC<TransformExistingDataProps> = ({
     totalValue: 0,
   });
 
-  // Load reports on component mount
-  useEffect(() => {
-    loadReports();
-  }, [selectedCompany]);
-
-  // Update summary when reports or filters change
-  useEffect(() => {
-    if (reports.length > 0) {
-      updateSummary();
-    }
-  }, [reports, filters]);
-
-  const loadReports = async () => {
-    if (!selectedCompany) return;
-
-    try {
-      setLoading(true);
-      const reportsList = await dbManager.getSalesReportsByCompany(
-        selectedCompany.id
-      );
-      setReports(reportsList);
-      console.log('Loaded reports for transformation:', reportsList.length);
-    } catch (error) {
-      console.error('Failed to load reports:', error);
-      showToast.error('Failed to load sales reports');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const updateSummary = () => {
-    const filteredReports = applyFilters();
-    const summaryData = getDateRangeSummary(filteredReports);
-    setSummary(summaryData);
-  };
-
-  const applyFilters = () => {
+  const applyFilters = useCallback(() => {
     let filtered = [...reports];
 
     if (filters.dateFrom) {
@@ -175,7 +143,43 @@ export const TransformExistingData: React.FC<TransformExistingDataProps> = ({
     }
 
     return filtered;
-  };
+  }, [reports, filters]);
+
+  const updateSummary = useCallback(() => {
+    const filteredReports = applyFilters();
+    const summaryData = getDateRangeSummary(filteredReports);
+    setSummary(summaryData);
+  }, [applyFilters]);
+
+  const loadReports = useCallback(async () => {
+    if (!selectedCompany) return;
+
+    try {
+      setLoading(true);
+      const reportsList = await dbManager.getSalesReportsByCompany(
+        selectedCompany.id
+      );
+      setReports(reportsList);
+      console.log('Loaded reports for transformation:', reportsList.length);
+    } catch (error) {
+      console.error('Failed to load reports:', error);
+      showToast.error('Failed to load sales reports');
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedCompany]);
+
+  // Load reports on component mount
+  useEffect(() => {
+    loadReports();
+  }, [selectedCompany, loadReports]);
+
+  // Update summary when reports or filters change
+  useEffect(() => {
+    if (reports.length > 0) {
+      updateSummary();
+    }
+  }, [reports, filters, updateSummary]);
 
   const handlePreviewTransformation = async () => {
     if (!selectedCompany) {
@@ -593,7 +597,7 @@ export const TransformExistingData: React.FC<TransformExistingDataProps> = ({
               <div className="max-h-32 overflow-y-auto">
                 {transformationResult.errors
                   .slice(0, 5)
-                  .map((error: any, index: number) => (
+                  .map((error: TransformationError, index: number) => (
                     <div
                       key={index}
                       className="text-sm text-red-600 dark:text-red-400"
@@ -619,7 +623,7 @@ export const TransformExistingData: React.FC<TransformExistingDataProps> = ({
               </h4>
               <div className="max-h-32 overflow-y-auto">
                 {transformationResult.warnings.map(
-                  (warning: any, index: number) => (
+                  (warning: string, index: number) => (
                     <div
                       key={index}
                       className="text-sm text-yellow-600 dark:text-yellow-400"
@@ -666,25 +670,25 @@ export const TransformExistingData: React.FC<TransformExistingDataProps> = ({
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {transformationResult.preview
                   .slice(0, 10)
-                  .map((row: any, index: number) => (
+                  .map((row: Record<string, unknown>, index: number) => (
                     <tr
                       key={index}
                       className="hover:bg-gray-50 dark:hover:bg-gray-700"
                     >
                       <td className="px-3 py-2 text-sm text-gray-900 dark:text-white">
                         <div className="font-medium">
-                          {row.cust_name || 'N/A'}
+                          {String(row.cust_name || 'N/A')}
                         </div>
                         <div className="text-xs text-gray-500 dark:text-gray-400">
-                          {row.cust_code || ''}
+                          {String(row.cust_code || '')}
                         </div>
                       </td>
                       <td className="px-3 py-2 text-sm text-gray-900 dark:text-white font-mono">
-                        {row.invno || 'N/A'}
+                        {String(row.invno || 'N/A')}
                       </td>
                       <td className="px-3 py-2 text-sm text-gray-900 dark:text-white">
                         {row.inv_date
-                          ? new Date(row.inv_date).toLocaleDateString()
+                          ? new Date(String(row.inv_date)).toLocaleDateString()
                           : 'N/A'}
                       </td>
                       <td className="px-3 py-2 text-sm text-gray-900 dark:text-white text-right">
@@ -719,7 +723,8 @@ export const TransformExistingData: React.FC<TransformExistingDataProps> = ({
                     Total Assessable: ₹
                     {transformationResult.preview
                       .reduce(
-                        (sum: number, row: any) => sum + (row.ass_val || 0),
+                        (sum: number, row: Record<string, unknown>) =>
+                          sum + ((row.ass_val as number) || 0),
                         0
                       )
                       .toLocaleString()}
@@ -728,7 +733,8 @@ export const TransformExistingData: React.FC<TransformExistingDataProps> = ({
                     Total Value: ₹
                     {transformationResult.preview
                       .reduce(
-                        (sum: number, row: any) => sum + (row.inv_val || 0),
+                        (sum: number, row: Record<string, unknown>) =>
+                          sum + ((row.inv_val as number) || 0),
                         0
                       )
                       .toLocaleString()}
