@@ -105,12 +105,18 @@ The application uses SQLite with the following core tables:
 - **Responsive Design Tests**: UI adaptation across different screen sizes
 - **Cross-Platform Tests**: Windows and macOS with different screen resolutions
 
-## 🚀 Deployment
+## 🚀 Deployment & Monitoring
 
 - **Windows**: MSI/EXE installer with code signing
 - **macOS**: DMG app bundle with notarization
 - **Auto-update**: Built-in update mechanism with staging/production channels
-- **CI/CD**: GitHub Actions pipeline with security scanning and Playwright MCP integration
+- **CI/CD**: Comprehensive GitHub Actions pipeline with:
+  - **Security Scanning**: Automated vulnerability detection and dependency monitoring
+  - **Performance Monitoring**: Bundle size analysis and optimization suggestions
+  - **Health Checks**: Automated application health monitoring every 6 hours
+  - **Quality Assurance**: TypeScript compilation, linting, and testing
+  - **Dependency Management**: Automated updates via Dependabot
+  - **Production Monitoring**: Real-time alerts for critical issues
 
 ## 📈 Success Metrics
 
@@ -121,11 +127,14 @@ The application uses SQLite with the following core tables:
 
 ## 🔒 Security & Compliance
 
-- **Dependency Scanning**: Automated vulnerability detection
+- **Dependency Scanning**: Automated vulnerability detection with weekly security audits
 - **Secrets Management**: Secure handling of signing keys and tokens
 - **Data Encryption**: Optional database encryption at rest
 - **Data Retention**: GDPR-like data retention policies
 - **Audit Logging**: Comprehensive action tracking
+- **Automated Monitoring**: Real-time security alerts and issue creation
+- **Dependency Updates**: Automated dependency updates via Dependabot
+- **Security Workflows**: Comprehensive CI/CD security scanning for both Node.js and Rust
 
 ## 📱 Responsive Design
 
@@ -146,6 +155,33 @@ The application uses SQLite with the following core tables:
 - **Security Testing**: Automated security audits
 - **Code Quality**: ESLint and TypeScript checks
 - **Docker Testing**: Container-based testing for consistency
+
+## 🔄 CI/CD Workflows & Automation
+
+### Security & Dependency Management
+- **Security Scanning**: Weekly automated security audits for Node.js and Rust dependencies
+- **Dependency Monitoring**: Automated dependency health checks and outdated package detection
+- **Dependabot Integration**: Automated dependency updates with smart auto-merge for minor/patch updates
+- **Vulnerability Alerts**: Real-time alerts for critical security issues
+
+### Performance & Quality
+- **Performance Optimization**: Weekly bundle size analysis and optimization suggestions
+- **Health Monitoring**: Application health checks every 6 hours
+- **Quality Assurance**: Automated TypeScript compilation, linting, and testing
+- **Build Verification**: Comprehensive build and test verification
+
+### Production Monitoring
+- **Automated Alerts**: Critical issue creation for production failures
+- **Weekly Reports**: Automated performance and health reports
+- **Artifact Storage**: Build artifacts and reports stored for 30 days
+- **Issue Management**: Automated issue creation with proper labeling and assignment
+
+### Workflow Schedule
+- **Security Scans**: Weekly (Monday 2 AM)
+- **Health Checks**: Every 6 hours
+- **Performance Analysis**: Weekly (Sunday 2 AM)
+- **Dependency Updates**: Weekly (Monday 9 AM)
+- **Monitoring Reports**: Weekly (Monday 9 AM)
 
 ## 🤝 Contributing
 
