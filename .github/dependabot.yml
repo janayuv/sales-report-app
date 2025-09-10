@@ -1,6 +1,6 @@
 version: 2
 updates:
-  # Enable version updates for npm
+  # Node.js dependencies
   - package-ecosystem: "npm"
     directory: "/sale-report-app"
     schedule:
@@ -9,9 +9,9 @@ updates:
       time: "09:00"
     open-pull-requests-limit: 10
     reviewers:
-      - "maintainer"
+      - "Sales Report Team"
     assignees:
-      - "maintainer"
+      - "Sales Report Team"
     commit-message:
       prefix: "chore"
       include: "scope"
@@ -19,15 +19,11 @@ updates:
       - "dependencies"
       - "javascript"
     ignore:
-      # Ignore major version updates for critical packages
-      - dependency-name: "react"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "react-dom"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "@tauri-apps/api"
+      # Ignore major version updates for now
+      - dependency-name: "*"
         update-types: ["version-update:semver-major"]
 
-  # Enable version updates for Cargo
+  # Rust dependencies
   - package-ecosystem: "cargo"
     directory: "/sale-report-app/src-tauri"
     schedule:
@@ -36,9 +32,9 @@ updates:
       time: "09:00"
     open-pull-requests-limit: 5
     reviewers:
-      - "maintainer"
+      - "Sales Report Team"
     assignees:
-      - "maintainer"
+      - "Sales Report Team"
     commit-message:
       prefix: "chore"
       include: "scope"
@@ -46,11 +42,11 @@ updates:
       - "dependencies"
       - "rust"
     ignore:
-      # Ignore major version updates for critical packages
-      - dependency-name: "tauri"
+      # Ignore major version updates for now
+      - dependency-name: "*"
         update-types: ["version-update:semver-major"]
 
-  # Enable version updates for GitHub Actions
+  # GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -59,11 +55,11 @@ updates:
       time: "09:00"
     open-pull-requests-limit: 5
     reviewers:
-      - "maintainer"
+      - "Sales Report Team"
     assignees:
-      - "maintainer"
+      - "Sales Report Team"
     commit-message:
-      prefix: "ci"
+      prefix: "chore"
       include: "scope"
     labels:
       - "dependencies"
