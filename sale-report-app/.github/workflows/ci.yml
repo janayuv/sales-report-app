@@ -14,7 +14,7 @@ jobs:
   # Lint and format check
   lint:
     name: Lint & Format
-    runs-on: windows-latest
+    runs-on: windows-latest  # FORCED WINDOWS RUNNER
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
