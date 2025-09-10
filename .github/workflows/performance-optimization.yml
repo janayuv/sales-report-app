@@ -1,0 +1,242 @@
+name: Performance Optimization & Analysis
+
+on:
+  schedule:
+    - cron: '0 2 * * 0' # Weekly on Sunday at 2 AM
+  workflow_dispatch: # Manual trigger
+  push:
+    branches: [ master ]
+    paths:
+      - 'sale-report-app/src/**'
+      - 'sale-report-app/package.json'
+      - 'sale-report-app/vite.config.ts'
+
+jobs:
+  performance-analysis:
+    name: Performance Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: sale-report-app/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./sale-report-app
+        run: npm ci
+
+      - name: Build application
+        working-directory: ./sale-report-app
+        run: npm run build
+
+      - name: Analyze bundle size
+        working-directory: ./sale-report-app
+        run: |
+          echo "## 📦 Bundle Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -d "dist" ]; then
+            echo "### 📊 Bundle Size Breakdown:" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            du -sh dist/* >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            
+            # Check for large files
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 🔍 Large Files Analysis:" >> $GITHUB_STEP_SUMMARY
+            find dist -type f -size +500k -exec ls -lh {} \; | sort -k5 -hr >> $GITHUB_STEP_SUMMARY || echo "No large files found" >> $GITHUB_STEP_SUMMARY
+            
+            # Total bundle size
+            total_size=$(du -sh dist | cut -f1)
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 📈 Total Bundle Size: $total_size" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ❌ Build directory not found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Run Lighthouse CI
+        working-directory: ./sale-report-app
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## ⚡ Lighthouse Performance Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Install lighthouse
+          npm install -g lighthouse
+          
+          # Start local server (if possible)
+          if command -v python3 &> /dev/null; then
+            python3 -m http.server 8080 -d dist &
+            SERVER_PID=$!
+            sleep 5
+            
+            # Run lighthouse
+            lighthouse http://localhost:8080 --output=json --output-path=lighthouse-report.json --chrome-flags="--headless" || true
+            
+            # Kill server
+            kill $SERVER_PID 2>/dev/null || true
+            
+            if [ -f "lighthouse-report.json" ]; then
+              echo "### 🎯 Lighthouse Scores:" >> $GITHUB_STEP_SUMMARY
+              echo '```json' >> $GITHUB_STEP_SUMMARY
+              jq '.categories | to_entries | map({key: .key, score: .value.score}) | from_entries' lighthouse-report.json >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "### ⚠️ Python3 not available for local server testing" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Analyze dependencies
+        working-directory: ./sale-report-app
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📚 Dependency Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Count dependencies
+          prod_deps=$(jq '.dependencies | length' package.json)
+          dev_deps=$(jq '.devDependencies | length' package.json)
+          
+          echo "### 📊 Dependency Count:" >> $GITHUB_STEP_SUMMARY
+          echo "- Production dependencies: $prod_deps" >> $GITHUB_STEP_SUMMARY
+          echo "- Development dependencies: $dev_deps" >> $GITHUB_STEP_SUMMARY
+          echo "- Total dependencies: $((prod_deps + dev_deps))" >> $GITHUB_STEP_SUMMARY
+          
+          # Check for duplicate dependencies
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔍 Duplicate Dependencies Check:" >> $GITHUB_STEP_SUMMARY
+          npm ls --depth=0 2>/dev/null | grep "UNMET\|extraneous" || echo "No duplicate dependencies found" >> $GITHUB_STEP_SUMMARY
+
+      - name: Memory usage analysis
+        working-directory: ./sale-report-app
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 🧠 Memory Usage Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Check Node.js memory usage during build
+          echo "### 📊 Build Memory Usage:" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          /usr/bin/time -v npm run build 2>&1 | grep -E "(Maximum resident|Average total|System time|User time)" || echo "Memory analysis not available" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload performance reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: performance-report-${{ github.run_number }}
+          path: |
+            sale-report-app/lighthouse-report.json
+            sale-report-app/dist/
+          retention-days: 30
+
+  optimization-suggestions:
+    name: Generate Optimization Suggestions
+    runs-on: ubuntu-latest
+    needs: performance-analysis
+    if: always()
+    
+    steps:
+      - name: Download performance artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: performance-report-${{ github.run_number }}
+          path: ./reports
+
+      - name: Generate optimization report
+        run: |
+          echo "## 🚀 Performance Optimization Suggestions" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Check bundle size
+          if [ -d "reports/dist" ]; then
+            bundle_size=$(du -sh reports/dist | cut -f1)
+            echo "### 📦 Current Bundle Size: $bundle_size" >> $GITHUB_STEP_SUMMARY
+            
+            # Suggest optimizations based on size
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 💡 Optimization Suggestions:" >> $GITHUB_STEP_SUMMARY
+            
+            # Check for large JavaScript files
+            large_js=$(find reports/dist -name "*.js" -size +1M | wc -l)
+            if [ "$large_js" -gt 0 ]; then
+              echo "- ⚠️ **Large JavaScript files detected**: Consider code splitting and lazy loading" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            # Check for large CSS files
+            large_css=$(find reports/dist -name "*.css" -size +500k | wc -l)
+            if [ "$large_css" -gt 0 ]; then
+              echo "- ⚠️ **Large CSS files detected**: Consider CSS purging and optimization" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            # Check for images
+            large_images=$(find reports/dist -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" -o -name "*.gif" -o -name "*.svg" | wc -l)
+            if [ "$large_images" -gt 0 ]; then
+              echo "- 🖼️ **Images found**: Consider WebP conversion and compression" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            echo "- 🔧 **General optimizations**: Enable gzip compression, implement caching strategies" >> $GITHUB_STEP_SUMMARY
+            echo "- 📱 **Mobile optimization**: Implement responsive images and touch-friendly interfaces" >> $GITHUB_STEP_SUMMARY
+            echo "- ⚡ **Performance**: Consider implementing service workers for offline functionality" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🎯 Next Steps:" >> $GITHUB_STEP_SUMMARY
+          echo "1. Review bundle analysis results" >> $GITHUB_STEP_SUMMARY
+          echo "2. Implement suggested optimizations" >> $GITHUB_STEP_SUMMARY
+          echo "3. Monitor performance metrics over time" >> $GITHUB_STEP_SUMMARY
+          echo "4. Set up performance budgets" >> $GITHUB_STEP_SUMMARY
+
+  create-optimization-issue:
+    name: Create Optimization Issue
+    runs-on: ubuntu-latest
+    needs: [performance-analysis, optimization-suggestions]
+    if: github.event.schedule == '0 2 * * 0' # Weekly on Sunday
+    
+    steps:
+      - name: Create weekly optimization issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `🚀 Weekly Performance Optimization Report - ${new Date().toISOString().split('T')[0]}`;
+            const body = `
+            ## 🚀 Weekly Performance Optimization Report
+            
+            **Report Date:** ${new Date().toISOString().split('T')[0]}
+            **Repository:** ${{ github.repository }}
+            
+            ### 📊 Performance Metrics:
+            - Bundle size analysis completed
+            - Dependency analysis performed
+            - Memory usage tracked
+            - Optimization suggestions generated
+            
+            ### 💡 Key Recommendations:
+            - Review bundle size and implement code splitting if needed
+            - Optimize images and assets
+            - Implement caching strategies
+            - Consider performance budgets
+            
+            ### 🎯 Action Items:
+            - [ ] Review performance report
+            - [ ] Implement suggested optimizations
+            - [ ] Monitor performance metrics
+            - [ ] Update performance budgets
+            
+            ---
+            *This report was automatically generated by the performance optimization workflow.*
+            `;
+            
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['performance', 'optimization', 'weekly', 'report']
+            });
