@@ -1,0 +1,20 @@
+[33mcommit c8b06f714f69b7ae170b8cb854b36e8c201f2b06[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mtest-workflows[m[33m, [m[1;31morigin/test-workflows[m[33m)[m
+Author: janayuv <bjana.ads@gmail.com>
+Date:   Wed Sep 10 09:24:54 2025 +0530
+
+    fix: Optimize all workflows for Windows-only builds
+    
+    - Remove Linux system dependencies (libgtk-3-dev, libwebkit2gtk-4.0-dev, etc.)
+    - Update all workflows to run on windows-latest instead of ubuntu-latest
+    - Update Node.js version from 18 to 22 for better compatibility
+    - Fix Windows-specific commands (Start-Sleep instead of sleep, Get-Process instead of pkill)
+    - Remove unnecessary cross-platform complexity
+    - Optimize CI/CD pipeline for Windows-only Tauri application
+    
+    This resolves the 'Install system dependencies' failures in CI jobs.
+
+sale-report-app/.github/workflows/accessibility.yml
+sale-report-app/.github/workflows/ci.yml
+sale-report-app/.github/workflows/code-quality.yml
+sale-report-app/.github/workflows/performance.yml
+sale-report-app/.github/workflows/security.yml

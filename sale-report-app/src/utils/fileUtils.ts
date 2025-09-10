@@ -47,7 +47,7 @@ export const downloadExcelFile = async (
     headerRow.fill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: 'FFE0E0E0' }
+      fgColor: { argb: 'FFE0E0E0' },
     };
   }
 
@@ -180,7 +180,7 @@ export const downloadFormattedExcel = async (
 
   if (data.length > 0) {
     const headers = Object.keys(data[0]);
-    
+
     // Add headers
     worksheet.addRow(headers);
 
@@ -202,7 +202,7 @@ export const downloadFormattedExcel = async (
     headerRow.fill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: 'FFE0E0E0' }
+      fgColor: { argb: 'FFE0E0E0' },
     };
 
     // Add summary row if requested
@@ -227,19 +227,19 @@ export const downloadFormattedExcel = async (
 
       // Add empty row
       worksheet.addRow([]);
-      
+
       // Add summary row
-      const summaryValues = headers.map(header => 
-        (summaryRow as Record<string, unknown>)[header] || ''
+      const summaryValues = headers.map(
+        header => (summaryRow as Record<string, unknown>)[header] || ''
       );
       const summaryRowIndex = worksheet.addRow(summaryValues);
-      
+
       // Style summary row
       summaryRowIndex.font = { bold: true };
       summaryRowIndex.fill = {
         type: 'pattern',
         pattern: 'solid',
-        fgColor: { argb: 'FFFFE0B2' }
+        fgColor: { argb: 'FFFFE0B2' },
       };
     }
   }
@@ -370,84 +370,78 @@ export const readCSVFile = (file: File): Promise<Record<string, unknown>[]> => {
   });
 };
 
-export const readExcelFile = (
+export const readExcelFile = async (
   file: File
 ): Promise<Record<string, unknown>[]> => {
-  return new Promise(async (resolve, reject) => {
-    console.log('Starting to read Excel file:', file.name, 'Size:', file.size);
+  console.log('Starting to read Excel file:', file.name, 'Size:', file.size);
 
-    try {
-      const workbook = new ExcelJS.Workbook();
-      const buffer = await file.arrayBuffer();
-      
-      await workbook.xlsx.load(buffer);
-      console.log('Workbook parsed, sheet names:', workbook.worksheets.map(ws => ws.name));
+  try {
+    const workbook = new ExcelJS.Workbook();
+    const buffer = await file.arrayBuffer();
 
-      if (workbook.worksheets.length === 0) {
-        reject(new Error('No sheets found in Excel file'));
-        return;
-      }
+    await workbook.xlsx.load(buffer);
+    console.log(
+      'Workbook parsed, sheet names:',
+      workbook.worksheets.map(ws => ws.name)
+    );
 
-      const worksheet = workbook.worksheets[0];
-      console.log('Using worksheet:', worksheet.name);
-
-      const rows: unknown[][] = [];
-      worksheet.eachRow((row, rowNumber) => {
-        const rowValues = row.values as unknown[];
-        // Remove the first element (index 0) as ExcelJS includes it for row numbers
-        rows.push(rowValues.slice(1));
-      });
-
-      console.log('Excel data extracted, rows:', rows.length);
-
-      if (rows.length < 2) {
-        reject(
-          new Error(
-            'Excel file must contain at least a header row and one data row'
-          )
-        );
-        return;
-      }
-
-      // Convert to object format
-      const headers = rows[0] as string[];
-      const dataRows = rows.slice(1);
-
-      const result = dataRows.map(row => {
-        const obj: Record<string, unknown> = {};
-        headers.forEach((header, index) => {
-          let value: unknown = row[index] || '';
-
-          // Clean the value if it's a string
-          if (typeof value === 'string') {
-            // Remove currency symbols
-            value = (value as string).replace(/[₹$€£¥]/g, '');
-
-            // Replace line breaks with spaces and normalize whitespace
-            value = (value as string)
-              .replace(/\r?\n/g, ' ')
-              .replace(/\s+/g, ' ')
-              .trim();
-          } else if (typeof value !== 'string' && typeof value !== 'number') {
-            // Convert other types to string
-            value = String(value);
-          }
-
-          obj[header] = value;
-        });
-        return obj;
-      });
-
-      console.log(
-        'Excel file processed successfully, records:',
-        result.length
-      );
-      resolve(result);
-    } catch (error) {
-      console.error('Error parsing Excel file:', error);
-      reject(new Error(`Failed to parse Excel file: ${error}`));
+    if (workbook.worksheets.length === 0) {
+      throw new Error('No sheets found in Excel file');
     }
-  });
+
+    const worksheet = workbook.worksheets[0];
+    console.log('Using worksheet:', worksheet.name);
+
+    const rows: unknown[][] = [];
+    worksheet.eachRow(row => {
+      const rowValues = row.values as unknown[];
+      // Remove the first element (index 0) as ExcelJS includes it for row numbers
+      rows.push(rowValues.slice(1));
+    });
+
+    console.log('Excel data extracted, rows:', rows.length);
+
+    if (rows.length < 2) {
+      throw new Error(
+        'Excel file must contain at least a header row and one data row'
+      );
+    }
+
+    // Convert to object format
+    const headers = rows[0] as string[];
+    const dataRows = rows.slice(1);
+
+    const result = dataRows.map(row => {
+      const obj: Record<string, unknown> = {};
+      headers.forEach((header, index) => {
+        let value: unknown = row[index] || '';
+
+        // Clean the value if it's a string
+        if (typeof value === 'string') {
+          // Remove currency symbols
+          value = (value as string).replace(/[₹$€£¥]/g, '');
+
+          // Replace line breaks with spaces and normalize whitespace
+          value = (value as string)
+            .replace(/\r?\n/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+        } else if (typeof value !== 'string' && typeof value !== 'number') {
+          // Convert other types to string
+          value = String(value);
+        }
+
+        obj[header] = value;
+      });
+      return obj;
+    });
+
+    console.log('Excel file processed successfully, records:', result.length);
+    return result;
+  } catch (error) {
+    console.error('Error parsing Excel file:', error);
+    throw new Error(`Failed to parse Excel file: ${error}`);
+  }
 };
 
 export const selectFile = (
