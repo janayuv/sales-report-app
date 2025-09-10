@@ -1,5 +1,10 @@
 name: Accessibility Testing
 
+env:
+  # Disable Linux-specific system libraries on Windows
+  PKG_CONFIG_PATH: ""
+  PKG_CONFIG_ALLOW_SYSTEM_CFLAGS: "0"
+
 on:
   pull_request:
     types: [opened, synchronize, reopened]
@@ -18,7 +23,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '20'
           cache: 'npm'
           cache-dependency-path: sale-report-app/package-lock.json
 
@@ -46,18 +51,18 @@ jobs:
       - name: Run axe-core accessibility tests
         working-directory: ./sale-report-app
         run: |
-          npx playwright test --grep="accessibility" || echo "No accessibility tests found"
+          try { npx playwright test --grep="accessibility" } catch { Write-Host "No accessibility tests found" }
 
       - name: Run Lighthouse accessibility audit
         run: |
           npm install -g @lhci/cli@0.12.x
-          lhci autorun --config=lighthouserc.json || echo "Lighthouse CI not configured"
+          try { lhci autorun --config=lighthouserc.json } catch { Write-Host "Lighthouse CI not configured" }
 
       - name: Run pa11y accessibility tests
         run: |
           npm install -g pa11y
-          pa11y http://localhost:4173 --reporter json > pa11y-report.json || true
-          pa11y http://localhost:4173 --reporter cli || true
+          try { pa11y http://localhost:4173 --reporter json > pa11y-report.json } catch { Write-Host "Pa11y JSON report failed" }
+          try { pa11y http://localhost:4173 --reporter cli } catch { Write-Host "Pa11y CLI report failed" }
 
       - name: Upload accessibility reports
         uses: actions/upload-artifact@v4

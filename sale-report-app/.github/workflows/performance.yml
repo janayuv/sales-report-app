@@ -1,5 +1,10 @@
 name: Performance Testing
 
+env:
+  # Disable Linux-specific system libraries on Windows
+  PKG_CONFIG_PATH: ""
+  PKG_CONFIG_ALLOW_SYSTEM_CFLAGS: "0"
+
 on:
   pull_request:
     types: [opened, synchronize, reopened]
@@ -18,7 +23,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '20'
           cache: 'npm'
           cache-dependency-path: sale-report-app/package-lock.json
 
@@ -76,7 +81,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '20'
           cache: 'npm'
           cache-dependency-path: sale-report-app/package-lock.json
 
@@ -126,7 +131,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '20'
           cache: 'npm'
           cache-dependency-path: sale-report-app/package-lock.json
 
