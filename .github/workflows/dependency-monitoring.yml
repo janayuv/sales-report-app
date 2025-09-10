@@ -27,10 +27,18 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
 
       - name: Install Node.js dependencies
         working-directory: ./sale-report-app
         run: npm ci
+
+      - name: Generate Rust lockfile
+        working-directory: ./sale-report-app/src-tauri
+        run: |
+          cargo generate-lockfile
+          echo "Cargo.lock generated successfully"
 
       - name: Check for outdated Node.js packages
         working-directory: ./sale-report-app
@@ -53,6 +61,13 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## 🦀 Rust Dependency Status" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Ensure Cargo.lock exists
+          if [ ! -f "Cargo.lock" ]; then
+            echo "Cargo.lock not found, generating it..." >> $GITHUB_STEP_SUMMARY
+            cargo generate-lockfile
+          fi
+          
           cargo install cargo-outdated
           cargo outdated --format json > rust-outdated.json || true
           if [ -s rust-outdated.json ]; then
@@ -84,6 +99,12 @@ jobs:
       - name: Security audit - Rust
         working-directory: ./sale-report-app/src-tauri
         run: |
+          # Ensure Cargo.lock exists
+          if [ ! -f "Cargo.lock" ]; then
+            echo "Cargo.lock not found, generating it..." >> $GITHUB_STEP_SUMMARY
+            cargo generate-lockfile
+          fi
+          
           cargo install cargo-audit
           cargo audit --json > rust-audit.json || true
           warnings=$(jq -r '.warnings | length // 0' rust-audit.json)
