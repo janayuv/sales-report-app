@@ -1,0 +1,252 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # Lint and format check
+  lint:
+    name: Lint & Format
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: sale-report-app/package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Install dependencies
+        working-directory: ./sale-report-app
+        run: npm ci
+
+      - name: Run ESLint
+        working-directory: ./sale-report-app
+        run: npm run lint
+
+      - name: Run Prettier check
+        working-directory: ./sale-report-app
+        run: npx prettier --check src/
+
+      - name: Check Rust formatting
+        working-directory: ./sale-report-app/src-tauri
+        run: cargo fmt -- --check
+
+      - name: Run Clippy
+        working-directory: ./sale-report-app/src-tauri
+        run: cargo clippy -- -D warnings
+
+  # Type checking
+  type-check:
+    name: Type Check
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: sale-report-app/package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        working-directory: ./sale-report-app
+        run: npm ci
+
+      - name: TypeScript type check
+        working-directory: ./sale-report-app
+        run: npx tsc --noEmit
+
+      - name: Rust type check
+        working-directory: ./sale-report-app/src-tauri
+        run: |
+          cargo --version
+          rustc --version
+          cargo check --verbose
+
+  # Unit tests
+  test:
+    name: Unit Tests
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: sale-report-app/package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        working-directory: ./sale-report-app
+        run: npm ci
+
+      - name: Run frontend tests
+        working-directory: ./sale-report-app
+        run: npm run test:run
+
+      - name: Run Rust tests
+        working-directory: ./sale-report-app/src-tauri
+        run: |
+          cargo --version
+          cargo test --verbose
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        with:
+          directory: ./sale-report-app/coverage
+          fail_ci_if_error: false
+
+  # Windows build and test
+  build:
+    name: Build & Test (Windows)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: sale-report-app/package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        working-directory: ./sale-report-app
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: ./sale-report-app
+        run: npm run build
+
+      - name: Build Tauri app
+        working-directory: ./sale-report-app
+        run: npm run tauri build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tauri-app-windows
+          path: |
+            sale-report-app/src-tauri/target/release/bundle/
+          retention-days: 7
+
+  # E2E tests
+  e2e:
+    name: E2E Tests
+    runs-on: windows-latest
+    needs: [build]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: sale-report-app/package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        working-directory: ./sale-report-app
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: ./sale-report-app
+        run: npx playwright install --with-deps
+
+      - name: Run E2E tests
+        working-directory: ./sale-report-app
+        run: npm run test:e2e
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: sale-report-app/playwright-report/
+          retention-days: 7
+
+  # Security audit
+  security:
+    name: Security Audit
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: sale-report-app/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./sale-report-app
+        run: npm ci
+
+      - name: Run security audit
+        working-directory: ./sale-report-app
+        run: npm audit --audit-level high || echo "Security audit completed with warnings"
+
+      - name: Run Rust security audit
+        working-directory: ./sale-report-app/src-tauri
+        run: |
+          cargo install cargo-audit
+          cargo audit
+
+  # Deploy (only on main branch)
+  deploy:
+    name: Deploy
+    runs-on: windows-latest
+    needs: [lint, type-check, test, build, e2e, security]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            tauri-app-windows/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
